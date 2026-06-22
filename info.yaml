@@ -8,7 +8,7 @@ project:
   clock_hz: 10000000
 
   # How many tiles your design occupies.
-  tiles: "2x2"
+  tiles: "1x2"
 
   # Top module name. Must start with "tt_um_".
   top_module:  "tt_um_fp8_fpu"
