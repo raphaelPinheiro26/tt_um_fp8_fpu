@@ -1,0 +1,14 @@
+{
+  // Associacoes de arquivo
+  "files.associations": {
+    "*.v": "verilog",
+    "*.vh": "verilog"
+  },
+  // Linter de Verilog via Icarus (precisa do iverilog no PATH).
+  // Se nao tiver instalado ainda, veja docs/DEV_SETUP_WINDOWS.md.
+  "verilog.linting.linter": "iverilog",
+  "verilog.linting.iverilog.arguments": "-I ${workspaceFolder}/src -t null",
+  // Python: descoberta de testes desligada (o fluxo e' via runner.py/make).
+  "python.testing.pytestEnabled": false,
+  "python.analysis.extraPaths": ["Golden_model", "test"]
+}

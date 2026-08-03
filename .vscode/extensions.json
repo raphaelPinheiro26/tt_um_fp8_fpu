@@ -1,0 +1,10 @@
+{
+  // Extensoes recomendadas para desenvolver a FPU FP8 (Verilog + cocotb).
+  // O VS Code sugere instala-las ao abrir a pasta.
+  "recommendations": [
+    "mshr-h.veriloghdl",        // realce/lint de Verilog e SystemVerilog
+    "ms-python.python",         // Python (cocotb, golden model)
+    "ms-python.vscode-pylance", // IntelliSense de Python
+    "wavetrace.wavetrace"       // visualizar waveforms (.vcd/.fst) no editor
+  ]
+}

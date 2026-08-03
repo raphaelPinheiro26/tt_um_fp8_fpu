@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Fluxo recomendado no Windows: nao depende do GNU make.
+      "label": "FP8: rodar simulacao (runner.py)",
+      "type": "shell",
+      "command": "python",
+      "args": ["runner.py"],
+      "options": { "cwd": "${workspaceFolder}/test" },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      // Alternativa via Makefile (precisa de make + iverilog no PATH,
+      // p.ex. dentro do shell do OSS CAD Suite ou no WSL).
+      "label": "FP8: rodar simulacao (make)",
+      "type": "shell",
+      "command": "make",
+      "args": ["-B"],
+      "options": { "cwd": "${workspaceFolder}/test" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      // Regenera os vetores golden (subconjunto rapido).
+      "label": "FP8: gerar vetores golden (quick)",
+      "type": "shell",
+      "command": "python",
+      "args": ["gen_vectors_math.py", "--quick"],
+      "options": { "cwd": "${workspaceFolder}/Golden_model" },
+      "problemMatcher": []
+    },
+    {
+      // Abre a forma de onda da ultima simulacao no GTKWave.
+      "label": "FP8: ver waveform (GTKWave)",
+      "type": "shell",
+      "command": "gtkwave",
+      "args": ["tb.fst", "tb.gtkw"],
+      "options": { "cwd": "${workspaceFolder}/test" },
+      "problemMatcher": []
+    }
+  ]
+}
