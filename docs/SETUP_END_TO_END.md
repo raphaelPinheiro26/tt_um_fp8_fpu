@@ -145,15 +145,27 @@ problemático é o do Windows):
 
 ```sh
 cd ~
-# baixe o release Linux x64 em:
-#   https://github.com/YosysHQ/oss-cad-suite-build/releases
+# 1) BAIXE primeiro o release Linux x64 (o passo que faltava!). Abra
+#    https://github.com/YosysHQ/oss-cad-suite-build/releases e copie o link do
+#    asset mais novo "oss-cad-suite-linux-x64-AAAAMMDD.tgz", ex.:
+wget https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-08-01/oss-cad-suite-linux-x64-20250801.tgz
+#    (troque a data pela do release atual; se o wget der 404, o link mudou —
+#     pegue o nome exato na página de Releases.)
+
+# 2) extraia (agora o arquivo existe, então o tar funciona):
 tar xzf oss-cad-suite-linux-x64-*.tgz
-# ative quando for usar formal (ajusta o PATH da sessão):
+
+# 3) ative (ajusta o PATH da sessão; rode toda vez que for usar formal):
 source ~/oss-cad-suite/environment
 
+# 4) rode as provas:
 cd ~/tt_um_fp8_fpu/verification/formal
 ./run.sh                    # roda todas as provas (.sby)
 ```
+
+> **O erro `tar: Cannot open: No such file or directory`** que você viu é só
+> isto: o `tar xzf oss-cad-suite-*.tgz` foi rodado **antes** de baixar o
+> arquivo. Faça o passo 1 (wget/download) primeiro.
 
 > Alternativa sem o bundle: no Ubuntu 24.04 dá para `sudo apt install -y yosys`
 > (versão nova o suficiente) e instalar o `sby` a partir do repositório

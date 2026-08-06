@@ -1,8 +1,6 @@
 <testsuites name="results">
   <testsuite name="all" package="all">
-    <property name="random_seed" value="1785798417" />
-    <testcase name="fp8_uvm" classname="fp8_test" file="/sessions/determined-adoring-goldberg/mnt/tt_um_fp8_fpu/verification/uvm/pyuvm/fp8_test.py" lineno="85" time="0.02436971664428711" sim_time_ns="80.0" ratio_time="3282.762830923357">
-      <failure error_type="ValueError" error_msg="Unknown format code 's' for object of type 'int'" />
-    </testcase>
+    <property name="random_seed" value="1785975667" />
+    <testcase name="fp8_uvm" classname="fp8_test" file="/home/rapha/tt_um_fp8_fpu/verification/uvm/pyuvm/fp8_test.py" lineno="85" time="0.7813689708709717" sim_time_ns="30500.0" ratio_time="39034.05578801324" />
   </testsuite>
 </testsuites>

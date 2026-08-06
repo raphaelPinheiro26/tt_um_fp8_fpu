@@ -9,7 +9,26 @@
 - **Yosys** and **SymbiYosys (`sby`)** with an SMT solver (yices, boolector,
   or z3). The simplest install is the YosysHQ **oss-cad-suite** bundle:
   <https://github.com/YosysHQ/oss-cad-suite-build/releases> — download, extract,
-  `source environment` (or add `bin/` to `PATH`).
+  `source environment` (or add `bin/` to `PATH`). Inside WSL2 use the **Linux**
+  release, e.g.:
+
+  ```bash
+  cd ~
+  curl -L -o oss-cad-suite.tgz \
+    https://github.com/YosysHQ/oss-cad-suite-build/releases/latest/download/oss-cad-suite-linux-x64-$(date +%Y%m%d 2>/dev/null || echo latest).tgz
+  # (if that URL 404s, just grab the newest linux-x64 .tgz asset from the
+  #  Releases page above), then:
+  tar xzf oss-cad-suite-*.tgz
+  source ~/oss-cad-suite/environment
+  ```
+
+> **SVA style — why immediate assertions.** Open-source Yosys (no Verific
+> front-end, as shipped in the OSS CAD Suite and used in CI) does **not** parse
+> concurrent `assert property (@(posedge clk) ...)`. All properties here are
+> therefore written as **immediate** assertions inside clocked `always` blocks
+> (the "ZipCPU" style) using `$past`/`$stable`-equivalents — the portable form
+> that plain Yosys fully supports. If you ever see `syntax error, unexpected
+> '@'`, a property slipped back into concurrent form.
 
 ## Run
 
@@ -30,7 +49,7 @@ failing means a scenario was **unreachable** (the assertion may be vacuous).
 |------|--------|------|-------|
 | `fp8_unpack_fv.sv` | `fp8_unpack` | combinational | Classification is **exactly-one** (mutually exclusive + complete) for all 256 words. |
 | `fp8_handshake_reg_fv.sv` | `fp8_handshake_reg` | k-induction | The depth-1 elastic buffer is **lossless, order-preserving, and non-corrupting** under arbitrary back-pressure. |
-| `fp8_elastic_pipeline_fv.sv` | `fp8_elastic_pipeline` | BMC + cover | The full variable-latency pipeline **never drops a result** under back-pressure and **stalls in-order** while the iterative divider runs. |
+| `fp8_elastic_pipeline_fv.sv` | `fp8_elastic_pipeline` | BMC + cover | The full variable-latency pipeline **never drops a result** under back-pressure and keeps `valid_out` stable until consumed; covers witness fast/divide/back-to-back drains. |
 
 ### 1. `fp8_unpack` — the "hello world" of formal (combinational)
 
@@ -80,15 +99,22 @@ Here latency is *variable*: `fp8_div_iter` stalls the chain for several cycles
 on DIV/SQRT. The proofs:
 
 - **`ap_out_persist`** — the whole point of "elastic": a produced result is
-  never lost while the consumer is not ready.
+  never lost while the consumer is not ready. (This is the same property proven
+  on the buffer as `ap_persist`, here applied to the pipeline's output stage.)
 - **`ap_valid_sticky`** — `valid_out` only falls on a completed transfer.
-- **`ap_busy_blocks_input`** *(white-box)* — while the divider iterates
-  (`dut.st == ST_BUSY`) the pipeline refuses new input, so results come back
-  **in issue order with no overtaking**. This reaches into the DUT's internal
-  state register — a control invariant black-box simulation can only sample.
-- **`cover`** witnesses: a fast result drains; the divider engages; a divide
-  result reaches the output within the bound; two results drain back-to-back
-  (multiple ops in flight).
+- **`cover`** witnesses (black-box, observable ports only): a fast result
+  drains; a divide/sqrt is accepted; a result drains after a divide has been
+  issued; two results drain back-to-back (multiple ops in flight).
+
+> **Note — in-order guarantee.** An earlier version asserted the no-overtaking
+> property directly on the divider FSM state (`dut.st`). Yosys hierarchical
+> references into a flattened DUT are unreliable in the sby flow (they silently
+> become an undriven wire), so that white-box assertion is intentionally *not*
+> used. In-order delivery is instead established **compositionally**: every
+> elastic buffer is proven order-preserving (`fp8_handshake_reg_fv.sv`), and the
+> exhaustive golden-model simulation exercises the divide latency directly. To
+> assert it white-box, expose a `busy` output from `fp8_elastic_pipeline` and
+> check `busy |-> !ready_out` (left as an exercise).
 
 ## The compositional argument (why we do NOT re-prove the math here)
 
