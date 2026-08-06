@@ -11,6 +11,8 @@ VERILOG_SOURCES += $(SRC_DIR)/fp8_unpack.v
 VERILOG_SOURCES += $(SRC_DIR)/fp8_execute_comb.v
 VERILOG_SOURCES += $(SRC_DIR)/fp8_normalize.v
 VERILOG_SOURCES += $(SRC_DIR)/fp8_round.v
+VERILOG_SOURCES += $(SRC_DIR)/fp8_div_iter.v
+VERILOG_SOURCES += $(SRC_DIR)/fp8_direct_ops.v
 
 COMPILE_ARGS += -I$(SRC_DIR)
 TOPLEVEL = fp8_elastic_pipeline

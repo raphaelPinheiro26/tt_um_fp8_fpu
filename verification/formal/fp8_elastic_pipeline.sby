@@ -1,0 +1,46 @@
+# SymbiYosys — end-to-end handshake contract for the FP8 pipeline.
+#   sby -f fp8_elastic_pipeline.sby prove   # safety (BMC) checks
+#   sby -f fp8_elastic_pipeline.sby cover    # liveness/reachability witnesses
+#
+# The cover task uses a deeper bound so the iterative divider has time to
+# finish and hand a result downstream (cp_div_result).
+
+[tasks]
+prove
+cover
+
+[options]
+prove: mode bmc
+prove: depth 24
+cover: mode cover
+cover: depth 40
+
+[engines]
+smtbmc
+
+[script]
+read_verilog -sv -formal -I. header_fp8.v
+read_verilog -formal -I. fp8_unpack.v
+read_verilog -formal -I. fp8_pre_execute.v
+read_verilog -formal -I. fp8_execute_comb.v
+read_verilog -formal -I. fp8_direct_ops.v
+read_verilog -formal -I. fp8_normalize.v
+read_verilog -formal -I. fp8_round.v
+read_verilog -formal -I. fp8_div_iter.v
+read_verilog -formal -I. fp8_handshake_reg.v
+read_verilog -formal -I. fp8_elastic_pipeline.v
+read_verilog -sv -formal -I. fp8_elastic_pipeline_fv.sv
+prep -top fp8_elastic_pipeline_fv
+
+[files]
+../../src/header_fp8.v
+../../src/fp8_unpack.v
+../../src/fp8_pre_execute.v
+../../src/fp8_execute_comb.v
+../../src/fp8_direct_ops.v
+../../src/fp8_normalize.v
+../../src/fp8_round.v
+../../src/fp8_div_iter.v
+../../src/fp8_handshake_reg.v
+../../src/fp8_elastic_pipeline.v
+fp8_elastic_pipeline_fv.sv

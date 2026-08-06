@@ -1,0 +1,4 @@
+# UVM track (pyuvm) Python dependencies.
+# A Verilog simulator is also required: Icarus Verilog (iverilog) or Verilator.
+cocotb==2.0.1
+pyuvm==4.0.1

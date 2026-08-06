@@ -16,3 +16,14 @@ sim_build/
 test/sim_build
 test/results.xml
 test/gate_level_netlist.v
+# Verification track — generated artefacts
+verification/formal/*/          # SymbiYosys work directories (per .sby)
+verification/dft/netlist_flat.v
+verification/dft/flops_*.txt
+verification/dft/scan_tb
+verification/**/sim_build/
+verification/**/*.vcd
+verification/**/*.fst
+# Hardening metrics — generated reports
+flow/reports/
+flow/__pycache__/

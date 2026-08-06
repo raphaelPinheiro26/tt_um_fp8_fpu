@@ -1,0 +1,57 @@
+# ======================================================================
+# scan_insert.ys — Yosys DFT demonstration on the FP8 FPU.
+#
+# Run from this directory:   yosys scan_insert.ys
+#
+# What it shows:
+#   1. how many flip-flops the design has (these are what a scan chain must
+#      stitch — the "state" a manufacturing tester needs to control/observe);
+#   2. synthesis to a flat gate + DFF netlist (the raw material for scan
+#      insertion / ATPG);
+#   3. mapping every flop to a single scan-friendly DFF type, so the design is
+#      ready for a tool to thread the scan chain.
+#
+# Full scan insertion + ATPG is done by dedicated tools (commercial: Tessent/
+# Modus/DFTMAX; open source: the Fault framework over Yosys+OpenSTA). This
+# script covers the Yosys-native part and makes the flop inventory concrete.
+# ======================================================================
+
+# ---- 1. Read the RTL (header_fp8.v resolved via the include path). ----
+read_verilog -I../../src ../../src/fp8_unpack.v
+read_verilog -I../../src ../../src/fp8_pre_execute.v
+read_verilog -I../../src ../../src/fp8_execute_comb.v
+read_verilog -I../../src ../../src/fp8_direct_ops.v
+read_verilog -I../../src ../../src/fp8_normalize.v
+read_verilog -I../../src ../../src/fp8_round.v
+read_verilog -I../../src ../../src/fp8_div_iter.v
+read_verilog -I../../src ../../src/fp8_handshake_reg.v
+read_verilog -I../../src ../../src/fp8_elastic_pipeline.v
+read_verilog -I../../src ../../src/fp8_controller.v
+read_verilog -I../../src ../../src/tiny_fp8_unit.v
+read_verilog -I../../src ../../src/tt_um_fp8_fpu.v
+
+hierarchy -top tt_um_fp8_fpu
+proc
+opt
+
+# ---- 2. Flop inventory BEFORE mapping (per-module breakdown). ----
+tee -o flops_by_module.txt stat
+
+# ---- 3. Synthesize to a flat generic gate + DFF netlist. ----
+synth -top tt_um_fp8_fpu -flatten
+opt -full
+
+# ---- 4. Normalise all flops to one positive-edge DFF type. A real flow now
+#         swaps each $_DFF_P_ for a scan flop (mux-D: SI/SE) and threads them
+#         into a shift register — see fp8_scan_reg.v for what that looks like. --
+dfflegalize -cell $_DFF_P_ 01
+
+# ---- 5. Final inventory: the exact flops the scan chain must include. ----
+tee -o flops_flat.txt stat
+
+# ---- 6. Emit the netlist so you can inspect the state elements. ----
+write_verilog -noattr netlist_flat.v
+
+# Note printed to console:
+log "DFT: every flop above must be made controllable/observable via scan."
+log "DFT: a scan tool replaces each with a mux-D scan flop and stitches SI->SO."

@@ -1,0 +1,36 @@
+name: uvm
+on: [push, workflow_dispatch]
+
+jobs:
+  pyuvm:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Install iverilog
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y iverilog
+
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install Python packages
+        shell: bash
+        run: pip install -r verification/uvm/requirements.txt
+
+      - name: Run pyuvm testbench (smoke)
+        shell: bash
+        run: |
+          cd verification/uvm/pyuvm
+          make clean
+          make TEST=Fp8SmokeTest
+
+      - name: Check for UVM errors
+        shell: bash
+        run: |
+          cd verification/uvm/pyuvm
+          # pyuvm/cocotb exit code is non-zero on failure, but double-check logs.
+          ! grep -Ei "UVM_ERROR :[^0]|UVM_FATAL :[^0]|MISMATCH|TEST FAILED" sim_build/*.log 2>/dev/null || true

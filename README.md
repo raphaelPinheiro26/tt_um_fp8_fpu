@@ -258,6 +258,11 @@ rm=0/near, op=0/ADD); read `0x40` (= 2.0) when `OUT_VALID` rises.
 
 Tests use [cocotb](https://www.cocotb.org/) and live in [`test/`](test/).
 
+> For a single end-to-end WSL2 setup covering simulation, the `verification/`
+> tracks (formal · UVM · DFT), LibreLane hardening and **metrics extraction for
+> characterisation**, see [`docs/SETUP_END_TO_END.md`](docs/SETUP_END_TO_END.md)
+> and the tooling in [`flow/`](flow/).
+
 ```bash
 # one-time setup (Debian/Ubuntu). On Windows, the OSS CAD Suite ships all of
 # these: https://github.com/YosysHQ/oss-cad-suite-build/releases
@@ -342,6 +347,28 @@ bit-accurate RTL golden model across all 1,310,720 cases.
 
 ---
 
+## Verification methodology track — UVM · Formal · DFT
+
+Beyond sign-off, [`verification/`](verification/) turns this design into a
+hands-on **portfolio and study track** for three pillars of modern silicon
+verification, all with open-source tooling:
+
+- **[Formal](verification/formal/)** (Yosys + SymbiYosys) — proves the elastic
+  `valid/ready` pipeline is lossless, order-preserving and non-corrupting under
+  arbitrary back-pressure, and that the divider stalls the chain in order. The
+  centrepiece is a k-induction proof of the depth-1 buffer `fp8_handshake_reg`.
+- **[UVM](verification/uvm/)** (pyuvm + cocotb) — a layered, constrained-random
+  testbench for the streaming top-level (sequence → driver → monitor →
+  scoreboard), self-checked against `Golden_model/fp8_math.py`, with a
+  SystemVerilog-UVM reference mirror for reading both dialects side by side.
+- **[DFT](verification/dft/)** (Yosys) — scan-chain concepts, a flop inventory
+  of the taped-out netlist, and a worked scan-insertion example.
+
+Each track has its own README with the concepts, how they map to this RTL, exact
+run commands, and exercises. Start at [`verification/README.md`](verification/README.md).
+
+---
+
 ## Repository layout
 
 ```
@@ -356,6 +383,10 @@ sim/                legacy stand-alone Verilog testbenches (reference / local de
   cocotb/             block-level cocotb testbenches (pipeline, unit, controller, handshake)
 Golden_model/       Python reference model + vector generator + vectors.hex
   vectors.hex         golden vectors (A B opcode rm result flags exc)
+verification/       methodology study track (portfolio, not taped out)
+  formal/             SymbiYosys handshake/pipeline proofs (valid/ready contract)
+  uvm/                pyuvm testbench + SystemVerilog-UVM reference mirror
+  dft/                Design-for-Test: scan concepts, Yosys flop inventory, scan example
 docs/PROTOCOL.md    full cycle-by-cycle streaming protocol
 docs/info.md        datasheet text (Tiny Tapeout datasheet page)
 info.yaml           Tiny Tapeout project metadata + pinout

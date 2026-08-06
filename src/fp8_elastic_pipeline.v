@@ -150,7 +150,14 @@ module fp8_elastic_pipeline (
     );
 
     // ---------------- SCALB: regua direta (A * 2^n) -> round ---------------
-    wire is_scalb = (opcode == `OPCODE_SCALB);
+    // NOTE: qualify with ~n_busy. During an iterative DIV/SQRT (ST_BUSY) the
+    // input `opcode` still carries the NEXT (pending) operation. If that
+    // pending op is SCALB, an unqualified is_scalb would hijack fin_sign/mw/er
+    // and corrupt the divide/sqrt result being written into RA. The special/
+    // token path (tok_*) is already n_busy-qualified below; this must match.
+    // (Bug found by the pyuvm constrained-random testbench in
+    //  verification/uvm; SCALB was never in the golden vector sign-off set.)
+    wire is_scalb = ~n_busy & (opcode == `OPCODE_SCALB);
     wire signed [9:0] scalb_ew = $signed({{4{exec_eA_r[5]}}, exec_eA_r})
                                + $signed({{2{B[7]}}, B});          // n = B (int8)
     wire signed [5:0] scalb_exp = (scalb_ew >  10'sd31) ?  6'sd31 :
