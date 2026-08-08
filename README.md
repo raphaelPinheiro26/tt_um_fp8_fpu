@@ -1,4 +1,7 @@
-![gds](../../workflows/gds/badge.svg) ![docs](../../workflows/docs/badge.svg) ![test](../../workflows/test/badge.svg) ![fpga](../../workflows/fpga/badge.svg)
+[![gds](https://github.com/raphaelPinheiro26/tt_um_fp8_fpu/actions/workflows/gds.yaml/badge.svg)](https://github.com/raphaelPinheiro26/tt_um_fp8_fpu/actions/workflows/gds.yaml)
+[![docs](https://github.com/raphaelPinheiro26/tt_um_fp8_fpu/actions/workflows/docs.yaml/badge.svg)](https://github.com/raphaelPinheiro26/tt_um_fp8_fpu/actions/workflows/docs.yaml)
+[![test](https://github.com/raphaelPinheiro26/tt_um_fp8_fpu/actions/workflows/test.yaml/badge.svg)](https://github.com/raphaelPinheiro26/tt_um_fp8_fpu/actions/workflows/test.yaml)
+[![fpga](https://github.com/raphaelPinheiro26/tt_um_fp8_fpu/actions/workflows/fpga.yaml/badge.svg)](https://github.com/raphaelPinheiro26/tt_um_fp8_fpu/actions/workflows/fpga.yaml)
 
 # FP8 (E4M3) Floating-Point Unit — Tiny Tapeout
 
@@ -47,23 +50,39 @@ flight** at once.
 
 This project is being migrated to the **SKY 26c** shuttle (ChipFoundry
 `sky130A`) and shrunk from **2×2 to 1×2** tiles after a targeted area-reduction
-pass (see below). First sky130 hardening results (LibreLane, `CLOCK_PERIOD=100 ns`):
+pass (see below). Latest sky130 hardening run (LibreLane, `CLOCK_PERIOD=100 ns`):
 
-| Metric            | Value                              |
-|-------------------|------------------------------------|
-| Process           | ChipFoundry `sky130A` (1.8 V)      |
-| Tiles             | 1×2                                |
-| Standard cells    | **5 470**                          |
-| Cell / die area   | **34 255 / 36 347 µm²**            |
-| Core utilisation  | **76.5 %**                         |
-| Flip-flops        | 161 (was 440)                      |
-| Declared clock    | 10 MHz                             |
+| Metric | Value |
+|--------|-------|
+| Process / PDK | ChipFoundry `sky130A` (1.8 V) |
+| Tiles | 1×2 |
+| Logic cells (excl. fill/tap) | **2 396** |
+| Total cells (incl. fill/tap) | 5 470 |
+| Flip-flops (`dfrtp`) | **227** (hardened netlist; ≈161 at RTL synth, was 440) |
+| Multiplexers (`mux2`/`mux4`) | 257 |
+| Core utilisation | **72.4 %** |
+| Wire length | **89 432 µm** |
+| Declared clock | 10 MHz |
+| Pipeline latency | 3 stages (was 4) |
+| **TT precheck** | **15 / 15 ✅** (Magic DRC · KLayout FEOL/BEOL/offgrid/pin/zero-area · pin/boundary/power/layer/cell-name/nwell · analog-pin · Verilog-syntax) |
+| **Gate-level tests** | **6 / 6 passed** |
+
+Characterization from the earlier clock-sweep run *(predates the netlist above;
+re-extract to refresh)*:
+
+| Metric | Value |
+|--------|-------|
+| Cell / die area | 34 255 / 36 347 µm² |
 | Setup / hold slack | +47.06 ns / +0.12 ns (meets @10 MHz) |
 | Fmax (clock sweep) | **as-is ≈ 24 MHz; ceiling ≈ 40 MHz** (critical-path floor ≈ 24 ns) |
-| Total power       | ≈ 2.3 mW *(default activity — see note)* |
+| Total power | ≈ 2.3 mW *(default activity — see note)* |
 | Max slew / cap violations | 742 / 0 *(clock is very relaxed)* |
-| Pipeline latency  | 3 stages (was 4)                   |
-| DRC / LVS         | disabled locally; run in TT precheck |
+| DRC / LVS | run and **clean** in the TT precheck (see above) |
+
+The full standard-cell breakdown of the latest run: 648 combinational, 257
+multiplexers, 227 NOR/XNOR, 227 flip-flops, 195 OR/XOR, 164 NAND, 148 clock, 131
+AND, 81 buffer, 59 inverter, 30 diode, plus 229 misc — **2 396 cells** total
+(excluding 2 618 fill and 456 tap cells).
 
 **Reading the numbers.** At the declared 10 MHz the design meets timing with huge
 margin (+47 ns setup slack). A **clock sweep** (`flow/sweep_clock.py`) tells the
@@ -90,9 +109,11 @@ clock), not a timing failure.
 5 V) hardened at 2×2 with 3842 standard cells, 440 flip-flops and only
 **40.8 % core utilisation** — i.e. the design used roughly 1.6 tiles of logic
 in 4 tiles of area. A dedicated area-reduction pass then cut the design's
-flip-flops by **64 % (450 → 161)** and its generic-gate count by **26 %**
-(measured with yosys `synth`), which — combined with the smaller sky130 HD cells
-— brings utilisation to a level that fits **1×1**.
+flip-flops by roughly half (**440 → ≈161** at yosys `synth`; the hardened
+sky130 netlist places **227** `dfrtp`, the extra coming from tech-mapping and
+the rd-FIFO realised as registers) and its generic-gate count by **26 %**,
+which — combined with the smaller sky130 HD cells — brings the design down to a
+**1×2** tile footprint.
 
 **What changed (all provably behaviour-preserving).** The FP8 numerical result,
 flags and exceptions are **bit-identical** to the previous design: the entire
@@ -151,7 +172,7 @@ as **1** in the best case.
 
 A transfer happens on the rising edge of `clk` where `valid` **and** `ready` are
 both high. The full cycle-by-cycle protocol is in
-[`docs/PROTOCOL.md`](docs/PROTOCOL.md).
+[`docs/wiki/Pin-Protocol.md`](docs/wiki/Pin-Protocol.md).
 
 ```
 input  bytes per op : A [, B] [, CTRL]      (B/CTRL skipped via sticky bits)
@@ -228,7 +249,7 @@ out_needed = READ_FULL ? 3 : 1
 To use the sticky reuse, send **one full operation first** (both sticky bits
 low) to load the B / CTRL holding registers, then raise the sticky bits and keep
 them stable across the bytes of each later operation. See
-[`docs/PROTOCOL.md`](docs/PROTOCOL.md) §4.
+[`docs/wiki/Pin-Protocol.md`](docs/wiki/Pin-Protocol.md) §4.
 
 ## FP8 E4M3 format
 
@@ -245,8 +266,9 @@ them stable across the bytes of each later operation. See
 | 6.0   | 0 1001 100 | 0x4C |
 
 Opcodes: `ADD=00000`, `SUB=00001`, `MUL=00010`, `DIV=00011`.
-Rounding modes and flag/exception bit positions are defined in
-[`src/header_fp8.v`](src/header_fp8.v).
+The full opcode, rounding-mode, flag and exception tables are in
+[`docs/wiki/ISA-Reference.md`](docs/wiki/ISA-Reference.md) (from
+[`src/header_fp8.v`](src/header_fp8.v)).
 
 ## How to drive operations (full mode)
 
@@ -282,7 +304,7 @@ Tests use [cocotb](https://www.cocotb.org/) and live in [`test/`](test/).
 
 > For a single end-to-end WSL2 setup covering simulation, the `verification/`
 > tracks (formal · UVM · DFT), LibreLane hardening and **metrics extraction for
-> characterisation**, see [`docs/SETUP_END_TO_END.md`](docs/SETUP_END_TO_END.md)
+> characterisation**, see [`docs/wiki/Getting-Started.md`](docs/wiki/Getting-Started.md)
 > and the tooling in [`flow/`](flow/).
 
 ```bash
@@ -330,7 +352,7 @@ vectors sampled evenly across all four ops and five rounding modes — enough to
 exercise the corners while keeping the repo small. The full exhaustive set
 (1,310,720 vectors) is regenerated from the Python reference model with
 `python3 Golden_model/gen_vectors_math.py`; see
-[`Golden_model/README.txt`](Golden_model/README.txt).
+[`Golden_model/README.md`](Golden_model/README.md).
 
 ### Block-level tests (`sim/cocotb/`)
 
@@ -409,8 +431,9 @@ verification/       methodology study track (portfolio, not taped out)
   formal/             SymbiYosys handshake/pipeline proofs (valid/ready contract)
   uvm/                pyuvm testbench + SystemVerilog-UVM reference mirror
   dft/                Design-for-Test: scan concepts, Yosys flop inventory, scan example
-docs/PROTOCOL.md    full cycle-by-cycle streaming protocol
-docs/info.md        datasheet text (Tiny Tapeout datasheet page)
+docs/               all documentation (English)
+  wiki/               single-source GitHub Wiki pages (guided docs)
+  info.md             Tiny Tapeout datasheet text (fixed path required by TT)
 info.yaml           Tiny Tapeout project metadata + pinout
 ```
 
