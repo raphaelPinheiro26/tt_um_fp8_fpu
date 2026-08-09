@@ -176,28 +176,162 @@ Detalhes de cada prova estão em [`verification/formal/README.md`](../verificati
 
 ## 7. Hardening RTL→GDS (LibreLane) + Docker
 
-Esta é a parte "Fitter + TimeQuest + GDS" do fluxo. O passo a passo detalhado
-já está em [LIBRELANE_LOCAL_WINDOWS.md](LIBRELANE_LOCAL_WINDOWS.md); em resumo:
+Esta é a parte "Fitter + TimeQuest + GDS" do fluxo: transformar o Verilog em um
+layout físico (GDSII) e medir timing/área. As ferramentas (Yosys, OpenROAD,
+OpenSTA…) rodam dentro de **contêineres Docker**, então o LibreLane baixa e
+executa essas imagens pra você — você não instala cada ferramenta na mão.
+
+> Reserve **10–15 GB** de disco e uma boa conexão: o primeiro run baixa o PDK
+> (o "kit" do processo sky130, alguns GB) e as imagens Docker. Os runs seguintes
+> reaproveitam tudo e são rápidos.
+
+### 7.1 Instalar o Docker Engine dentro do WSL (sem Docker Desktop)
+
+**O que é Docker?** Um jeito de rodar programas dentro de "caixas" isoladas
+(contêineres) já com tudo que eles precisam. O LibreLane usa isso pra garantir
+que as ferramentas rodem igualzinho na sua máquina e no CI.
+
+Aqui vamos instalar o Docker **direto no Ubuntu do WSL** (não precisa do Docker
+Desktop no Windows). Tudo roda dentro do terminal do Ubuntu.
+
+**1) Instalar o pacote** (a versão do Ubuntu já serve):
 
 ```sh
-# Docker: instale o Docker Desktop (Windows) com integração WSL2 para a distro
-# Ubuntu, OU o docker engine dentro do WSL. Teste:  docker run --rm hello-world
-
-cd ~/tt_um_fp8_fpu
-git clone https://github.com/TinyTapeout/tt-support-tools tt
-
-source ~/.venvs/fp8/bin/activate
-pip install -r tt/requirements.txt
-export PDK_ROOT=~/ttsetup/pdk PDK=sky130A LIBRELANE_TAG=3.0.3
-pip install librelane==$LIBRELANE_TAG
-
-./tt/tt_tool.py --create-user-config
-./tt/tt_tool.py --harden          # lint (Verilator) + Yosys + OpenROAD + OpenSTA
+sudo apt update
+sudo apt install -y docker.io
 ```
 
-Resultados em `runs/wokwi/` (GDS em `final/gds/`, netlist em `final/pnl/`, e os
-`metrics.json`/relatórios de STA nas pastas de step). O primeiro `--harden`
-baixa o PDK (alguns GB); os próximos são rápidos.
+**2) Rodar sem `sudo`** — adicione seu usuário ao grupo `docker` uma vez:
+
+```sh
+sudo usermod -aG docker $USER
+```
+
+**3) Ligar o serviço do Docker.** O WSL não liga serviços sozinho por padrão.
+Duas opções — escolha **uma**:
+
+- **A (recomendada, fica ligado sempre): ativar o systemd no WSL.** Edite/crie
+  o arquivo `/etc/wsl.conf`:
+
+  ```sh
+  sudo tee /etc/wsl.conf > /dev/null <<'EOF'
+  [boot]
+  systemd=true
+  EOF
+  ```
+
+  Depois, **no PowerShell do Windows**, reinicie o WSL:
+
+  ```powershell
+  wsl --shutdown
+  ```
+
+  Reabra o Ubuntu e habilite o Docker de vez:
+
+  ```sh
+  sudo systemctl enable --now docker
+  ```
+
+- **B (simples, sem systemd): ligar na mão a cada sessão.** Sempre que abrir o
+  WSL e for usar o Docker, rode:
+
+  ```sh
+  sudo service docker start
+  ```
+
+**4) Reabra o terminal** (pra valer a mudança do grupo `docker` do passo 2) e
+**teste**:
+
+```sh
+docker run --rm hello-world
+```
+
+Deu certo se aparecer **"Hello from Docker!"**.
+
+> **Erros comuns:**
+> - `Cannot connect to the Docker daemon` → o serviço não está ligado: rode
+>   `sudo service docker start` (ou confira o passo 3A).
+> - `permission denied ... /var/run/docker.sock` → você não reabriu o terminal
+>   depois do `usermod` (passo 2). Feche e reabra o WSL, ou rode `newgrp docker`.
+
+### 7.2 Baixar o tt-support-tools e instalar o LibreLane
+
+O `tt-support-tools` é o script oficial do Tiny Tapeout que monta a configuração
+certa (tamanho da tile, pinos de power, wrapper `tt_um_*`, PDK) e chama o
+LibreLane. **Não** commite ele — já está no `.gitignore` (a `tt-gds-action` do
+CI clona sozinha).
+
+```sh
+cd ~/tt_um_fp8_fpu
+
+# 1) clona a ferramenta do TT dentro da pasta tt/
+git clone https://github.com/TinyTapeout/tt-support-tools tt
+
+# 2) ativa o mesmo venv da seção 4 e instala as dependências dela
+source ~/.venvs/fp8/bin/activate
+pip install -r tt/requirements.txt
+
+# 3) define o PDK e a versão do LibreLane (valores do shuttle ttsky26c)
+export PDK_ROOT=~/ttsetup/pdk
+export PDK=sky130A
+export LIBRELANE_TAG=3.0.3
+pip install librelane==$LIBRELANE_TAG
+```
+
+> Guarde esses 3 `export` — você precisa deles **toda vez** que abrir um terminal
+> novo pra hardenizar. (Dá pra colar no `~/.bashrc` se quiser que fiquem fixos.)
+
+### 7.3 Rodar o hardening
+
+```sh
+./tt/tt_tool.py --create-user-config   # gera a config a partir do info.yaml
+./tt/tt_tool.py --harden               # roda o fluxo completo (usa o Docker)
+```
+
+O `--harden` faz, em sequência: **lint** (Verilator, compila o RTL), **síntese**
+(Yosys), floorplan → placement → CTS → rota (OpenROAD) e o **STA** (OpenSTA).
+Se o Verilog não compilar ou tiver violação de timing, ele reclama aqui. O
+primeiro run demora (baixa PDK + imagens); os próximos são rápidos.
+
+Depois, um resumo rápido:
+
+```sh
+./tt/tt_tool.py --print-warnings
+./tt/tt_tool.py --print-stats
+```
+
+### 7.4 Onde ficam os resultados
+
+Tudo cai em `runs/wokwi/` (pasta ignorada pelo git):
+
+- **GDS final:** `runs/wokwi/final/gds/`
+- **Netlist pós-PnR:** `runs/wokwi/final/pnl/tt_um_fp8_fpu.pnl.v`
+- **Lint do Verilog:** `runs/wokwi/*-verilator-lint/verilator-lint.log`
+- **STA / timing + `metrics.json`:** nas pastas de step (ex.: `*-openroad-*sta*`)
+
+A seção 8 mostra como transformar esses `metrics.json` numa tabela pronta.
+
+### 7.5 Trocar de PDK (leia o aviso!)
+
+> ⚠️ **Para submeter ao Tiny Tapeout, o PDK é FIXO pelo shuttle** — o `ttsky26c`
+> exige `sky130A`. Não troque o PDK do fluxo do TT, senão a submissão não vale.
+> A troca abaixo é só para **experimentos seus** (ex.: comparar processos na
+> tese), rodando o LibreLane fora do fluxo do TT.
+
+O PDK é escolhido pela variável de ambiente `PDK` (e baixado para `PDK_ROOT`
+pela ferramenta `ciel`). PDKs open-source comuns:
+
+| PDK | Processo | Uso |
+|-----|----------|-----|
+| `sky130A` | SkyWater 130 nm (1.8 V) | **o do TT (ttsky26c)** |
+| `sky130B` | SkyWater 130 nm (variante) | experimentos |
+| `gf180mcuD` | GlobalFoundries 180 nm | experimentos |
+
+Para um experimento próprio (LibreLane direto, sem o `tt_tool.py`), você aponta
+o PDK na config do LibreLane ou via env e roda o `librelane` com o
+`src/config.json` adaptado. Como isso sai do fluxo oficial do TT, deixei como
+tópico avançado — se quiser seguir por aí para a tese, me chama que a gente monta
+uma config de comparação de PDKs separada, sem mexer no que vai pro TT.
 
 ## 8. Métricas para o doutorado
 
