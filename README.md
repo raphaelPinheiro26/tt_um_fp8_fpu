@@ -43,26 +43,48 @@ flight** at once.
 
 > My first Tiny Tapeout chip. 🎉
 
-## Target shuttle: SKY 26c (sky130A), 1×1
+## Target shuttle: SKY 26c (sky130A), 1×2
 
 This project is being migrated to the **SKY 26c** shuttle (ChipFoundry
-`sky130A`) and shrunk from **2×2 to 1×1** tiles after a targeted area-reduction
-pass (see below). The sky130 hardening results below will be filled in after the
-first `gds` action run.
+`sky130A`) and shrunk from **2×2 to 1×2** tiles after a targeted area-reduction
+pass (see below). First sky130 hardening results (LibreLane, `CLOCK_PERIOD=100 ns`):
 
 | Metric            | Value                              |
 |-------------------|------------------------------------|
 | Process           | ChipFoundry `sky130A` (1.8 V)      |
-| Tiles             | 1×1 (target)                       |
-| Standard cells    | _pending sky130 hardening_         |
-| Core utilisation  | _pending sky130 hardening_         |
+| Tiles             | 1×2                                |
+| Standard cells    | **5 470**                          |
+| Cell / die area   | **34 255 / 36 347 µm²**            |
+| Core utilisation  | **76.5 %**                         |
 | Flip-flops        | 161 (was 440)                      |
 | Declared clock    | 10 MHz                             |
+| Setup / hold slack | +47.06 ns / +0.12 ns (meets @10 MHz) |
+| Fmax (clock sweep) | **as-is ≈ 24 MHz; ceiling ≈ 40 MHz** (critical-path floor ≈ 24 ns) |
+| Total power       | ≈ 2.3 mW *(default activity — see note)* |
+| Max slew / cap violations | 742 / 0 *(clock is very relaxed)* |
 | Pipeline latency  | 3 stages (was 4)                   |
-| DRC / LVS         | _pending sky130 hardening_         |
+| DRC / LVS         | disabled locally; run in TT precheck |
 
-The declared 10 MHz is conservative because the divide path is combinational;
-the real maximum frequency comes from the STA signoff of the hardening run.
+**Reading the numbers.** At the declared 10 MHz the design meets timing with huge
+margin (+47 ns setup slack). A **clock sweep** (`flow/sweep_clock.py`) tells the
+real story: at a relaxed target the tool leaves the critical path long
+(~52.9 ns → the naive 18.9 MHz), but under pressure it squeezes the path down to
+a **floor of ≈ 24 ns** — so **Fmax tops out around 40 MHz**, roughly 2× the naive
+estimate. That floor is the **combinational C0 stage** (unpack → pre-execute →
+execute → normalize, incl. the barrel shifter): buffering cannot cross it, so
+**pipelining C0** is the lever for higher Fmax. (At loose targets the sweep
+misses closure by only ~1 ns, which looks like a hold-fixing/margin artifact
+rather than the datapath.) Power scales ~linearly with frequency, ~0.28 mW/MHz
+(5.7 mW @25 MHz → 20 mW @77 MHz). The 742 max-slew violations are a
+signal-integrity/quality item (high-fanout nets unbuffered under the relaxed
+clock), not a timing failure.
+
+> **Power caveat.** `power__total` (≈2.3 mW) comes from OpenSTA with **default
+> switching activity**, so the dynamic part (internal + switching) is an
+> estimate, not a measurement. Leakage (~34 nW) is workload-independent and
+> trustworthy. For realistic dynamic power on a specific workload (e.g. a stream
+> of DIVs vs ADDs), feed a VCD/SAIF from a gate-level sim into STA — see
+> [`flow/README.md`](flow/README.md).
 
 **Sizing rationale.** The prior **GF 26b** run (GlobalFoundries `gf180mcu`,
 5 V) hardened at 2×2 with 3842 standard cells, 440 flip-flops and only
