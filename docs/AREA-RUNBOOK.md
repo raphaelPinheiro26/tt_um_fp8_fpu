@@ -43,13 +43,17 @@ replaces this estimate with a real number.
 ```sh
 cd ~/tt_um_fp8_fpu
 
-# regenerate both vector sets if you do not have them
+# regenerate both vector sets if you do not have them.
+# NOTE: --new writes vectors_newops.hex, the default writes vectors.hex.
+# They are two different files — do not send both to the same one.
 cd Golden_model
-python3 gen_vectors_math.py            # 1,311,488 arithmetic + sign vectors
-python3 gen_vectors_math.py --new      #   527,360 extended-opcode vectors
+python3 gen_vectors_math.py                              # 1,311,488 -> vectors.hex
+python3 gen_vectors_math.py --new                        #   527,360 -> vectors_newops.hex
+wc -l vectors.hex vectors_newops.hex                     # expect 1311488 and 527360
 cd ..
 
 cd test
+chmod +x regress.sh             
 JOBS=$(nproc) ./regress.sh             # all 14 opcodes, ~1.84M vectors
 cd ..
 ```

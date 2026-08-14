@@ -35,6 +35,12 @@
 # emit exactly those eight, or --all for the full instruction set.
 #
 # Usage:
+# The default output file follows the selection, so that --new can never
+# clobber the arithmetic sign-off set:
+#   (default) -> vectors.hex        --new  -> vectors_newops.hex
+#   --all     -> vectors_all.hex    --ops  -> vectors_custom.hex
+# --out always wins.
+#
 #   python3 gen_vectors_math.py               # ADD/SUB/MULT/DIV + NEG/COPYSIGN
 #   python3 gen_vectors_math.py --all         # every opcode the RTL implements
 #   python3 gen_vectors_math.py --new         # only the 8 never-signed-off ops
@@ -158,9 +164,19 @@ def main():
     quick = "--quick" in args
     check = "--check" in args
     ops = parse_ops(args)
-    out = "vectors.hex"
+    # Default output depends on the selection, so that `--new` cannot silently
+    # clobber the arithmetic sign-off set. Only the default (arithmetic + sign)
+    # selection writes vectors.hex.
     if "--out" in args:
         out = args[args.index("--out") + 1]
+    elif "--new" in args:
+        out = "vectors_newops.hex"
+    elif "--all" in args:
+        out = "vectors_all.hex"
+    elif "--ops" in args:
+        out = "vectors_custom.hex"
+    else:
+        out = "vectors.hex"
 
     if check:
         try:
