@@ -41,6 +41,12 @@ module fp8_execute_comb (
     // ADD/SUB cru
     output wire [`NRM_ACCW-1:0]    exec_acc,
     output wire signed [5:0]       exec_big_e,
+    // sticky do alinhamento do ADD/SUB. NAO e' injetado no acumulador: se
+    // fosse, o deslocamento a esquerda da normalizacao (cancelamento) o
+    // carregaria para dentro das posicoes de guard/round e ele passaria a
+    // ser lido como um bit exato. Sai separado e o fp8_normalize o aplica
+    // DEPOIS de normalizar, na posicao de sticky, junto com o remnz do DIV.
+    output wire                    exec_sticky,
     // MULT cru
     output wire [7:0]              exec_prod,
     output wire signed [5:0]       exec_e_base,
@@ -129,6 +135,7 @@ module fp8_execute_comb (
 
     reg                 as_sign;
     reg                 as_zero;
+    reg                 as_sticky;
     reg  [ACCW-1:0]     as_acc;            // acumulador (magnitude)
     reg  signed [5:0]   as_big_e;
 
@@ -154,6 +161,7 @@ module fp8_execute_comb (
         sticky_align = 1'b0;
         as_sign      = 1'b0;
         as_zero      = 1'b0;
+        as_sticky    = 1'b0;
         as_acc       = {ACCW{1'b0}};
         as_big_e     = 6'sd0;
 
@@ -190,20 +198,29 @@ module fp8_execute_comb (
             small_sh = (d_align >= ACCW6) ? {ACCW{1'b0}} : (small_m >> d_align);
 
             if (big_s == small_s) begin
+                // SOMA: os bits descartados so' aumentam o resultado
+                // verdadeiro; representa-lo por baixo com sticky=1 ja' e'
+                // a forma correta para o arredondamento.
                 as_acc  = big_m + small_sh;
                 as_sign = big_s;
             end else begin
+                // SUBTRACAO: os bits descartados tornam o subtraendo MAIOR,
+                // logo o resultado verdadeiro e' MENOR que (big - small_sh).
+                // Sinalizar sticky nao basta: e' preciso tomar emprestado 1
+                // ulp do acumulador. O valor exato passa a estar no intervalo
+                // (as_acc, as_acc+1), que e' exatamente o que sticky=1
+                // representa para o arredondador.
                 if (big_m >= small_sh) begin
-                    as_acc  = big_m - small_sh;
+                    as_acc  = big_m - small_sh - {{(ACCW-1){1'b0}}, sticky_align};
                     as_sign = big_s;
                 end else begin
                     as_acc  = small_sh - big_m;
                     as_sign = small_s;
                 end
             end
-            // injeta sticky do alinhamento no bit0
-            as_acc = as_acc | {{(ACCW-1){1'b0}}, sticky_align};
-            as_zero = (as_acc == {ACCW{1'b0}});
+            // sticky sai separado (aplicado pos-normalizacao, ver acima)
+            as_sticky = sticky_align;
+            as_zero = (as_acc == {ACCW{1'b0}}) && !sticky_align;
             as_big_e = big_e;
         end
     end
@@ -253,6 +270,7 @@ module fp8_execute_comb (
     // ADD/SUB cru
     assign exec_acc     = as_acc;
     assign exec_big_e   = as_big_e;
+    assign exec_sticky  = as_sticky;
     // MULT cru
     assign exec_prod    = ml_prod;
     assign exec_e_base  = ml_e_base;

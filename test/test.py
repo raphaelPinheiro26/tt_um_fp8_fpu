@@ -53,7 +53,11 @@ FPU_BUSY_BIT  = 1 << 7
 FLAG_MASK = 0x7F  # 7 flag bits
 EXC_MASK  = 0x1F  # 5 exception bits
 
-VEC_FILE = os.path.join(os.path.dirname(__file__), "..", "Golden_model", "vectors.hex")
+# FP8_VEC lets a run point at an alternative vector file (e.g. the
+# vectors_newops.hex produced by `gen_vectors_math.py --new`) without
+# touching the committed sign-off set.
+VEC_FILE = os.environ.get("FP8_VEC") or os.path.join(
+    os.path.dirname(__file__), "..", "Golden_model", "vectors.hex")
 
 DEFAULT_NVEC = int(os.environ.get("FP8_NVEC", "1500"))
 DEFAULT_NBP  = int(os.environ.get("FP8_NBP", "400"))

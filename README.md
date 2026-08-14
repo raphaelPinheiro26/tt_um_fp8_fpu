@@ -347,12 +347,23 @@ A waveform is written to `test/tb.fst` (open with GTKWave or Surfer).
 Gate-level tests run with `make GATES=yes` after hardening produces a netlist.
 The Tiny Tapeout GitHub Actions also run these tests automatically on every push.
 
-The committed [`Golden_model/vectors.hex`](Golden_model/vectors.hex) holds ~30k
-vectors sampled evenly across all four ops and five rounding modes — enough to
-exercise the corners while keeping the repo small. The full exhaustive set
-(1,310,720 vectors) is regenerated from the Python reference model with
-`python3 Golden_model/gen_vectors_math.py`; see
-[`Golden_model/README.md`](Golden_model/README.md).
+The committed [`Golden_model/vectors.hex`](Golden_model/vectors.hex) is the
+**full exhaustive arithmetic set**: 1,310,720 cases (256×256 operands × 4 ops ×
+5 rounding modes) plus 768 NEG/COPYSIGN cases. It is regenerated from the Python
+reference model with `python3 Golden_model/gen_vectors_math.py`.
+
+The RTL also implements SQRT, MIN, MAX, ABS, CLASSIFY, COMPARE, SCALB and
+ROUNDINT, which are covered by a second exhaustive set,
+[`Golden_model/vectors_newops.hex`](Golden_model/vectors_newops.hex) (527,360
+cases), regenerated with `python3 Golden_model/gen_vectors_math.py --new`.
+Point the top-level suite at it with the `FP8_VEC` environment variable:
+
+```
+FP8_VEC=../Golden_model/vectors_newops.hex FP8_NVEC=0 make
+```
+
+See [`Golden_model/README.md`](Golden_model/README.md) and
+[`docs/COVERAGE.md`](docs/COVERAGE.md) for the per-opcode sign-off status.
 
 ### Block-level tests (`sim/cocotb/`)
 
