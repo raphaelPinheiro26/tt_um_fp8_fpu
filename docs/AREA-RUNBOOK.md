@@ -32,9 +32,19 @@ Reference point — the last hardening run before these changes:
 | Fill / decap | 2618 |
 | Tiles | 1×2 |
 
-Predicted after the change (yosys generic-gate scaling, **not** authoritative):
-≈ **−520 cells**, landing near **1876 cells / ~57 % utilisation**. Step 3 is what
-replaces this estimate with a real number.
+**Measured after the change** (LibreLane, sky130):
+
+| Metric | Before | After | Delta |
+|---|---:|---:|---:|
+| Core utilisation | 72.429 % | **67.641 %** | −4.79 pp |
+| Wire length | 89 432 µm | **72 757 µm** | −18.6 % |
+| Cells (excl. fill/tap) | 2396 | ~2238 *(derived from utilisation)* | ~−158 |
+
+> The pre-hardening prediction from yosys generic-gate counts was −520 cells /
+> ~57 % utilisation. It was wrong by about 3×. Generic gates are not
+> proportional to cell area — use `stat -liberty` (section 2) instead. Keeping
+> the miss on record because it is the reason section 2 now leads with the
+> liberty-based flow.
 
 ---
 
@@ -131,16 +141,36 @@ The three numbers that matter for the next decision:
 python3 flow/collect_metrics.py --run runs/wokwi --out flow/reports/fp8_narrow
 ```
 
-**Record them here:**
+**Recorded:**
 
 | Metric | Before | After | Delta |
 |---|---:|---:|---:|
-| Core utilisation (%) | 72.429 | | |
-| Cells (excl. fill/tap) | 2396 | | |
-| Flip-flops | 227 | | |
-| Wire length (µm) | 89 432 | | |
-| Setup slack (ns) | | | |
-| DRC / LVS | clean | | |
+| Core utilisation (%) | 72.429 | **67.641** | −4.79 pp |
+| Wire length (µm) | 89 432 | **72 757** | −18.6 % |
+| Cells (excl. fill/tap) | 2396 | *pending* | |
+| Flip-flops | 227 | *pending* | |
+| Setup slack (ns) | | *pending* | |
+| DRC / LVS | clean | *pending* | |
+
+`--print-stats` only reports the routing block. The exact cell and flip-flop
+counts are in the **gds workflow summary** (the "Cell usage by Category" table
+and the `N total cells (excluding fill and tap cells)` line), or locally in the
+LibreLane step logs under `runs/wokwi/`. Fill those in — the derived ~2238 is an
+inference from utilisation, not a measurement.
+
+### Budget
+
+Die capacity is fixed by the 1×2 tile count:
+
+```
+capacity = 2396 / 0.72429 = ~3309 cells
+current  = 3309 * 0.67641 = ~2238 cells
+```
+
+| Ceiling | Usable | Budget |
+|---|---:|---:|
+| 82 % (conservative) | 2713 | **~475 cells** |
+| 85 % (plausible — 18.6 % less wire than the 72 % run) | 2813 | **~575 cells** |
 
 ---
 

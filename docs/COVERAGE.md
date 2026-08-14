@@ -132,11 +132,36 @@ Technology-independent yosys synthesis (`proc; flatten; opt; techmap`):
 | **`G=4`, `ACCW=10`, `MW=8` (current)** | **4079** | **248** |
 | **delta vs original** | **−1187 (−22.5 %)** | **−8** |
 
-These are generic gates, not sky130 cells; the real number comes from
-re-hardening. Scaling by the combinational ratio of the last hardening run
-(2169 sky130 cells / 5010 generic gates) puts the estimate near **−520 sky130
-cells** — roughly 72 % → 57 % core utilisation, which is about 800 cells of
-headroom for CVT and a reduced accumulator.
+### Measured result (sky130, LibreLane)
+
+Generic gate counts turned out to be a **poor** proxy for cell area. The
+hardening run gives:
+
+| Metric | Before | After | Delta |
+|---|---:|---:|---:|
+| Core utilisation | 72.429 % | **67.641 %** | −4.79 pp (−6.6 % relative) |
+| Wire length | 89 432 µm | **72 757 µm** | **−18.6 %** |
+| Cells (excl. fill/tap) | 2396 | ~2238 *(derived)* | ~−158 |
+
+The 22.5 % generic-gate reduction became a **6.6 %** area reduction. The
+removed logic was mostly muxes and simple gates from the shifters, which map to
+small sky130 cells, while what remains concentrates flip-flops and complex
+cells. Scaling generic gate counts by a single ratio was wrong by roughly 3×.
+
+**Lesson: measure with `stat -liberty` against the PDK, not with generic gate
+counts.** See `docs/COMB-OPT.md`.
+
+The result that mattered more was not area but **routing**: 16.7 mm less wire
+on a design that already needed `GRT_ALLOW_CONGESTION: 1` at 72 % utilisation.
+That raises the practical utilisation ceiling, which is what actually gates how
+much new logic can be added.
+
+Budget for new features, on a fixed 1×2 die of ~3309 cells capacity:
+
+| Ceiling | Usable cells | Budget over ~2238 |
+|---|---:|---:|
+| 82 % | 2713 | ~475 |
+| 85 % | 2813 | ~575 |
 
 ### Validation status of the narrowed datapath
 
