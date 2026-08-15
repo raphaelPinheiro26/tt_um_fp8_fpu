@@ -133,6 +133,20 @@ module fp8_execute_comb (
     localparam integer ACCW = `NRM_ACCW;   // largura do acumulador (folga p/ carry) = 4 + G + 2
     localparam [5:0]   ACCW6 = `NRM_ACCW;  // mesma constante em 6 bits (comparar c/ d_align)
 
+    // ---- CVT inteiro -> fp8 -------------------------------------------
+    // Um inteiro n com MSB no bit k vale 1.xxx * 2^k. Colocando n nos bits
+    // baixos do acumulador e usando ebase = off (= G+4), o fp8_normalize
+    // calcula e_real = ebase + (msb - off) = msb, que e' exatamente k.
+    // Assim as conversoes reaproveitam a LZC, o shifter e o fp8_round
+    // inteiros, sem hardware novo de normalizacao/arredondamento.
+    localparam signed [5:0] CVT_EBASE = G + 4;
+    wire        is_i2f    = (opcode == `OPCODE_CVT_I2F);
+    wire        is_u2f    = (opcode == `OPCODE_CVT_U2F);
+    wire        is_cvt_if = is_i2f | is_u2f;
+    wire [7:0]  cvt_in    = {signA, expA, mantA};        // A cru (e' um inteiro)
+    wire        cvt_neg   = is_i2f & cvt_in[7];          // U2F nunca e' negativo
+    wire [7:0]  cvt_mag   = cvt_neg ? (~cvt_in + 8'd1) : cvt_in;
+
     reg                 as_sign;
     reg                 as_zero;
     reg                 as_sticky;
@@ -166,7 +180,12 @@ module fp8_execute_comb (
         as_big_e     = 6'sd0;
 
         // seleciona maior expoente
-        if (zA && zB) begin
+        if (is_cvt_if) begin
+            as_sign  = cvt_neg;
+            as_zero  = (cvt_mag == 8'd0);
+            as_acc   = {{(ACCW-8){1'b0}}, cvt_mag};      // ACCW=10 > 8
+            as_big_e = CVT_EBASE;
+        end else if (zA && zB) begin
             as_sign = signA & signB_eff; as_zero = 1'b1; as_acc = {ACCW{1'b0}};
             as_big_e = 6'sd0;
         end else if (zA) begin
@@ -259,11 +278,14 @@ module fp8_execute_comb (
     // ==================================================================
     // sinal e is_zero já selecionados pelo opcode; os barramentos crus de
     // cada operação saem em paralelo e o fp8_normalize seleciona/normaliza.
-    assign exec_sign = (opcode == `OPCODE_ADD || opcode == `OPCODE_SUB) ? as_sign :
+    // o caminho do acumulador serve ADD/SUB e tambem as conversoes int->fp8
+    wire use_as_path = (opcode == `OPCODE_ADD) || (opcode == `OPCODE_SUB) || is_cvt_if;
+
+    assign exec_sign = use_as_path ? as_sign :
                        (opcode == `OPCODE_MULT) ? ml_sign :
                        is_sqrt ? 1'b0 : dv_sign;   // SQRT: resultado sempre +
 
-    assign exec_is_zero = (opcode == `OPCODE_ADD || opcode == `OPCODE_SUB) ? as_zero :
+    assign exec_is_zero = use_as_path ? as_zero :
                           (opcode == `OPCODE_MULT) ? ml_zero :
                           is_sqrt ? 1'b0 : dv_zero;
 

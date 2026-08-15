@@ -76,6 +76,15 @@
 `define OPCODE_ROUNDINT 5'b01011
 `define OPCODE_NEG      5'b01100    // negate(A): copia A com o sinal invertido
 `define OPCODE_COPYSIGN 5'b01101    // copySign(A,B): magnitude de A, sinal de B
+// Conversoes inteiro <-> fp8. Semantica RISC-V FCVT: arredonda pelo rm e
+// DEPOIS checa a faixa, saturando no extremo com INVALID. A IEEE-754 deixa
+// esse resultado nao especificado; fixar o valor do RISC-V custa ~20 celulas
+// e torna o modelo de referencia total (toda entrada tem saida definida).
+// Todas sao UNARIAS em A.
+`define OPCODE_CVT_F2I  5'b01110    // fp8   -> int8   (satura [-128,127])
+`define OPCODE_CVT_F2U  5'b01111    // fp8   -> uint8  (satura [0,255])
+`define OPCODE_CVT_I2F  5'b10000    // int8  -> fp8    (nunca estoura)
+`define OPCODE_CVT_U2F  5'b10001    // uint8 -> fp8    (255 > 240: pode estourar)
 
 // ======================================================================
 // MODOS DE ARREDONDAMENTO

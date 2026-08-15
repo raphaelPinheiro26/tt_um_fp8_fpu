@@ -39,11 +39,13 @@
 # clobber the arithmetic sign-off set:
 #   (default) -> vectors.hex        --new  -> vectors_newops.hex
 #   --all     -> vectors_all.hex    --ops  -> vectors_custom.hex
+#   --cvt     -> vectors_cvt.hex
 # --out always wins.
 #
 #   python3 gen_vectors_math.py               # ADD/SUB/MULT/DIV + NEG/COPYSIGN
 #   python3 gen_vectors_math.py --all         # every opcode the RTL implements
 #   python3 gen_vectors_math.py --new         # only the 8 never-signed-off ops
+#   python3 gen_vectors_math.py --cvt         # only the 4 integer conversions
 #   python3 gen_vectors_math.py --ops sqrt,min,max
 #   python3 gen_vectors_math.py --rne         # RM_NEAREST only (rm-dependent ops)
 #   python3 gen_vectors_math.py --no-div      # exclude DIV
@@ -55,7 +57,9 @@
 import sys
 from fp8_common import (OP_ADD, OP_SUB, OP_MULT, OP_DIV, OP_SQRT, OP_MIN,
                         OP_MAX, OP_ABS, OP_CLASSIFY, OP_COMPARE, OP_SCALB,
-                        OP_ROUNDINT, OP_NEG, OP_COPYSIGN, OP_NAMES)
+                        OP_ROUNDINT, OP_NEG, OP_COPYSIGN,
+                        OP_CVT_F2I, OP_CVT_F2U, OP_CVT_I2F, OP_CVT_U2F,
+                        OP_NAMES)
 from fp8_math import fp8_math
 
 # COPYSIGN so' depende do bit de sinal de B; estes dois doadores cobrem
@@ -95,17 +99,26 @@ OP_SPEC = {
     OP_ROUNDINT: (1, True),
     OP_NEG:      (1, False),
     OP_COPYSIGN: (2, False),
+    # conversoes: unarias em A, e todas dependem do modo de arredondamento
+    # (F2I/F2U arredondam antes de checar a faixa; I2F/U2F arredondam o
+    #  inteiro para a grade do E4M3).
+    OP_CVT_F2I:  (1, True),
+    OP_CVT_F2U:  (1, True),
+    OP_CVT_I2F:  (1, True),
+    OP_CVT_U2F:  (1, True),
 }
 
-# Canonical emission order. NEG/COPYSIGN stay last so that the default
-# selection reproduces the historical file byte for byte.
+# NEG/COPYSIGN stay in their historical position so the default selection
+# reproduces vectors.hex byte for byte; CVT is appended after them.
 OP_ORDER = [OP_ADD, OP_SUB, OP_MULT, OP_DIV, OP_SQRT, OP_MIN, OP_MAX,
             OP_ABS, OP_CLASSIFY, OP_COMPARE, OP_SCALB, OP_ROUNDINT,
-            OP_NEG, OP_COPYSIGN]
+            OP_NEG, OP_COPYSIGN,
+            OP_CVT_F2I, OP_CVT_F2U, OP_CVT_I2F, OP_CVT_U2F]
 
 DEFAULT_OPS = {OP_ADD, OP_SUB, OP_MULT, OP_DIV, OP_NEG, OP_COPYSIGN}
 NEW_OPS = {OP_SQRT, OP_MIN, OP_MAX, OP_ABS, OP_CLASSIFY, OP_COMPARE,
            OP_SCALB, OP_ROUNDINT}
+CVT_OPS = {OP_CVT_F2I, OP_CVT_F2U, OP_CVT_I2F, OP_CVT_U2F}
 
 NAME_TO_OP = {v.lower(): k for k, v in OP_NAMES.items()}
 
@@ -137,6 +150,8 @@ def parse_ops(args):
         sel = set(OP_ORDER)
     elif "--new" in args:
         sel = set(NEW_OPS)
+    elif "--cvt" in args:
+        sel = set(CVT_OPS)
     elif "--ops" in args:
         names = args[args.index("--ops") + 1].split(",")
         sel = set()
@@ -171,6 +186,8 @@ def main():
         out = args[args.index("--out") + 1]
     elif "--new" in args:
         out = "vectors_newops.hex"
+    elif "--cvt" in args:
+        out = "vectors_cvt.hex"
     elif "--all" in args:
         out = "vectors_all.hex"
     elif "--ops" in args:

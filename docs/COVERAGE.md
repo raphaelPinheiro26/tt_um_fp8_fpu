@@ -29,15 +29,59 @@ in any row of this table.
 | **SCALB** | **327,680** | 256 × 256 (n as int8) × 5 rm | yes | **pass** |
 | **ROUNDINT** | **1,280** | 256 × 5 rm | yes | **pass** |
 
-Rows in bold were **not** part of the historical sign-off set and were added in
-the Fase 0 coverage pass. Total: 1,311,488 arithmetic + 527,360 extended =
-**1,838,848 exhaustive vectors, zero mismatches**.
+| **CVT_F2I** | **1,280** | 256 × 5 rm | yes | **pass** |
+| **CVT_F2U** | **1,280** | 256 × 5 rm | yes | **pass** |
+| **CVT_I2F** | **1,280** | 256 × 5 rm | yes | **pass** |
+| **CVT_U2F** | **1,280** | 256 × 5 rm | yes | **pass** |
+
+Rows in bold were **not** part of the historical sign-off set. Total:
+1,311,488 arithmetic + 527,360 extended + 5,120 conversions =
+**1,843,968 exhaustive vectors, zero mismatches**.
 
 Files:
 
 - `Golden_model/vectors.hex` — arithmetic + sign ops (`gen_vectors_math.py`)
 - `Golden_model/vectors_newops.hex` — the eight extended ops
   (`gen_vectors_math.py --new`)
+- `Golden_model/vectors_cvt.hex` — the four integer conversions
+  (`gen_vectors_math.py --cvt`)
+
+## Integer conversions (CVT)
+
+Four unary opcodes on operand A: `CVT_F2I` (fp8→int8), `CVT_F2U` (fp8→uint8),
+`CVT_I2F` (int8→fp8), `CVT_U2F` (uint8→fp8).
+
+**Semantics: RISC-V FCVT.** Round per the rounding mode *first*, then
+range-check and saturate; out-of-range and NaN raise `invalid` and do **not**
+raise `inexact`. IEEE-754 §7.2 leaves this result unspecified — it does not
+forbid a choice, it declines to make one — so adopting the RISC-V value costs
+nothing in standards compliance, makes the cv32e40x coupling direct (no
+software fixup), and keeps the reference model *total*: every input has a
+defined output, which is what allows exhaustive sign-off with no don't-care
+cases.
+
+Range facts that make the corners real, not hypothetical:
+
+- E4M3 reaches ±240 but int8 stops at −128..127, so ~15 of the 256 codes
+  saturate on `F2I`. `−128` is exactly representable in both and does not.
+- 240 **fits** in uint8 (0..255), so `F2U` never overflows upward — only
+  negatives saturate, to 0.
+- 255 **exceeds** the largest finite fp8 (240), so `U2F` is the one conversion
+  that can overflow, going to Inf or the largest finite per the rounding mode.
+- A negative that rounds to zero (e.g. −0.4 under RNE) converts to 0 with
+  `inexact` and **no** `invalid` — only a rounded value that is genuinely out
+  of range saturates.
+
+**Cost: +325 generic gates, 0 flip-flops.** The implementation reuses the
+ROUNDINT shifter and rounding decision in `fp8_direct_ops` for fp8→int, and
+for int→fp8 it injects the integer into the existing accumulator with
+`ebase = G+4`, so `fp8_normalize` computes `e_real = msb` and the whole
+LZC/shifter/rounder chain is reused unchanged. No new normalisation or
+rounding hardware.
+
+Integer 0 converts to **+0 always**, never −0, even in round-down — handled as
+a special in `fp8_pre_execute` because the shared rounder would otherwise emit
+−0 in that mode.
 
 ## Why some opcodes are swept at rm=0 only
 

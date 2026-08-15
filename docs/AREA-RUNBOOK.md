@@ -145,18 +145,36 @@ python3 flow/collect_metrics.py --run runs/wokwi --out flow/reports/fp8_narrow
 
 | Metric | Before | After | Delta |
 |---|---:|---:|---:|
-| Core utilisation (%) | 72.429 | **67.641** | −4.79 pp |
+| Core utilisation (%) — TT report | 72.429 | **67.641** | −4.79 pp |
 | Wire length (µm) | 89 432 | **72 757** | −18.6 % |
-| Cells (excl. fill/tap) | 2396 | *pending* | |
+| Cells (excl. fill/tap) | 2396 | ~2238 *(derived)* | ~−158 |
 | Flip-flops | 227 | *pending* | |
-| Setup slack (ns) | | *pending* | |
-| DRC / LVS | clean | *pending* | |
+| Setup worst slack (ns) @ T=100 | | **45.893** | |
+| Critical path (ns) | | **54.107** | |
+| Estimated Fmax (MHz) | | **18.48** | |
+| Hold worst slack (ns) | | +0.115 | |
+| Total power (W) | | 0.0013 | |
+| Max slew violations | | 614 | |
 
-`--print-stats` only reports the routing block. The exact cell and flip-flop
-counts are in the **gds workflow summary** (the "Cell usage by Category" table
-and the `N total cells (excluding fill and tap cells)` line), or locally in the
-LibreLane step logs under `runs/wokwi/`. Fill those in — the derived ~2238 is an
-inference from utilisation, not a measurement.
+### Reading these numbers — three traps
+
+1. **Two different "utilisation" figures.** `--print-stats` (the TT report)
+   says 67.641 %; `collect_metrics.py` reads LibreLane's
+   `design__instance__utilization` and says 71.9 %. Different denominators.
+   Only compare like with like: the 72.429 % baseline came from the TT report,
+   so the TT report figure is the one to track.
+
+2. **`Cell area` == `Core area` is not a bug.** After fill insertion the
+   instances physically occupy 100 % of the core, so `design__instance__area`
+   equals `design__core__area`. It includes fill.
+
+3. **Total instance count went *up*** (5470 → 5695) even though logic shrank —
+   fill expands into whatever space you free. **Never use total instance count
+   to measure an area saving.** Use the TT report's
+   `N total cells (excluding fill and tap cells)`.
+
+The exact logic-cell and flip-flop counts are in the **gds workflow summary**
+("Cell usage by Category"), not in `--print-stats` or `collect_metrics.py`.
 
 ### Budget
 

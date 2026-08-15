@@ -48,7 +48,9 @@ module fp8_normalize (
     localparam integer QDIV = `NRM_QDIV;
     localparam integer MW   = `NRM_MW;
 
-    wire is_as = (opcode == `OPCODE_ADD) || (opcode == `OPCODE_SUB);
+    // I2F/U2F entram pelo mesmo barramento do acumulador (ver fp8_execute_comb)
+    wire is_as = (opcode == `OPCODE_ADD) || (opcode == `OPCODE_SUB)
+              || (opcode == `OPCODE_CVT_I2F) || (opcode == `OPCODE_CVT_U2F);
 
     // ------------------------------------------------------------------
     // Selecao da magnitude/expoente/offset/sticky do caminho ativo
