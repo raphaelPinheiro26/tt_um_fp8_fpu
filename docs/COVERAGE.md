@@ -72,7 +72,7 @@ Range facts that make the corners real, not hypothetical:
   `inexact` and **no** `invalid` — only a rounded value that is genuinely out
   of range saturates.
 
-**Cost: +325 generic gates, 0 flip-flops.** The implementation reuses the
+**Cost: +276 generic gates, 0 flip-flops.** The implementation reuses the
 ROUNDINT shifter and rounding decision in `fp8_direct_ops` for fp8→int, and
 for int→fp8 it injects the integer into the existing accumulator with
 `ebase = G+4`, so `fp8_normalize` computes `e_real = msb` and the whole
@@ -82,6 +82,32 @@ rounding hardware.
 Integer 0 converts to **+0 always**, never −0, even in round-down — handled as
 a special in `fp8_pre_execute` because the shared rounder would otherwise emit
 −0 in that mode.
+
+### Where the cost lands, and why it matters for routing
+
+| Module | before | after | delta |
+|---|---:|---:|---:|
+| `fp8_direct_ops` | 728 | 917 | **+189** |
+| `fp8_execute_comb` | 751 | 816 | +65 |
+| `fp8_pre_execute` | 264 | 294 | +30 |
+| `fp8_normalize` | 748 | 755 | +7 |
+
+Two thirds of the cost lands in `fp8_direct_ops`, a single flat combinational
+block — so it arrives as one **dense local cluster**, not spread out. Global
+area barely moves (~2 %) but local density does, which is what drives detailed
+routing congestion. Watch this table, not just the total, when adding logic.
+
+Two micro-optimisations worth keeping in mind for anything added here:
+
+- `mag > 127` is `mag[7]`; `mag > 128` is `mag[7] & |mag[6:0]`. Written with
+  `>`, yosys builds two 8-bit carry chains inside the densest block of the
+  design.
+- The `E-3` left shift only ranges over 0..4, so a 3-bit shift amount is
+  enough. A 4-bit one makes a 16-position barrel shifter for a 5-position
+  need.
+
+Together these removed 49 gates from `fp8_direct_ops` with no functional
+change (all 5,120 vectors still pass).
 
 ## Why some opcodes are swept at rm=0 only
 

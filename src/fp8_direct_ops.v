@@ -143,11 +143,24 @@ module fp8_direct_ops (
     //   E <  3 : reaproveita EXATAMENTE a maquinaria do ROUNDINT acima
     //            (ri_int / ri_g / ri_s / ri_incd), cujo resultado cabe em
     //            4 bits (0..8). Isto e' o que torna o CVT barato.
-    wire [3:0] cv_lsh   = ri_ef - 4'd10;                 // E-3, valido p/ exp>=10
+    // lsh = E-3 = exp-10, e SO' vale no ramo exp>=10, logo lsh esta' em 0..4:
+    // 3 bits bastam. Com 4 bits o yosys constroi um barrel shifter de 16
+    // posicoes para uma faixa de 5 — um terco a mais de mux num bloco que
+    // ja' e' o mais denso do design.
+    wire [2:0] cv_lsh   = ri_ef[2:0] - 3'd2;             // (exp-10) mod 8, exp>=10
     wire [7:0] cv_big   = {4'b0, ri_sig4} << cv_lsh;     // 8..240, exato
     wire       cv_isbig = ri_norm && (ri_E >= 6'sd3);
     wire [7:0] cv_mag   = cv_isbig ? cv_big : {4'b0, ri_incd};
     wire       cv_inx   = ~cv_isbig & (ri_g | ri_s);     // so' o ramo curto arredonda
+
+    // Comparacoes contra 127/128 NAO precisam de comparador de 8 bits:
+    //   mag > 127  <=>  mag[7]
+    //   mag > 128  <=>  mag[7] & |mag[6:0]
+    // Escrever com '>' faria o yosys sintetizar duas cadeias de carry de
+    // 8 bits dentro do bloco mais congestionado do design.
+    wire       cv_gt127 = cv_mag[7];
+    wire       cv_gt128 = cv_mag[7] & (|cv_mag[6:0]);
+    wire [7:0] cv_neg   = (~cv_mag) + 8'd1;
 
     reg  [7:0] cv_res;
     reg        cv_nv, cv_nx;
@@ -157,12 +170,12 @@ module fp8_direct_ops (
             if (a_nan)                       begin cv_res = 8'h7F; cv_nv = 1'b1; end
             else if (flagsA[`FLAG_INF])      begin cv_res = signA ? 8'h80 : 8'h7F; cv_nv = 1'b1; end
             else if (!signA) begin
-                if (cv_mag > 8'd127)         begin cv_res = 8'h7F; cv_nv = 1'b1; end
+                if (cv_gt127)                begin cv_res = 8'h7F; cv_nv = 1'b1; end
                 else                         begin cv_res = cv_mag; cv_nx = cv_inx; end
             end else begin
                 // -128 e' representavel; abaixo disso satura
-                if (cv_mag > 8'd128)         begin cv_res = 8'h80; cv_nv = 1'b1; end
-                else                         begin cv_res = (~cv_mag) + 8'd1; cv_nx = cv_inx; end
+                if (cv_gt128)                begin cv_res = 8'h80; cv_nv = 1'b1; end
+                else                         begin cv_res = cv_neg; cv_nx = cv_inx; end
             end
         end else begin                                    // F2U
             if (a_nan)                       begin cv_res = 8'hFF; cv_nv = 1'b1; end
