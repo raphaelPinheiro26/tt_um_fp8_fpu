@@ -233,42 +233,61 @@ Budget for new features, on a fixed 1×2 die of ~3309 cells capacity:
 | 82 % | 2713 | ~475 |
 | 85 % | 2813 | ~575 |
 
-### Validation status of the narrowed datapath
+### Sign-off status — exhaustive at BOTH levels
 
-At `NRM_G=4`, `NRM_ACCW=10` (accumulator only):
+The full 1,843,968-vector sweep passes at `NRM_MW=8`, `NRM_G=4`,
+`NRM_ACCW=10`, in RTL **and** against the post-PnR netlist:
 
-| Opcode | Vectors | |
-|---|---:|---|
-| ADD + SUB | 655,360 | complete, all 5 rounding modes |
-| MULT | 327,680 | complete |
-| SQRT, ROUNDINT, ABS, CLASSIFY, NEG, COPYSIGN | 3,840 | complete |
-| DIV | 122,880 / 327,680 | 37.5 % sampled |
-
-At `NRM_MW=8` (full current configuration):
-
-| Set | Vectors | |
-|---|---:|---|
-| every case whose expected result is subnormal or zero | 322,361 | complete, all opcodes and modes — this is the set the denormalisation shift actually stresses |
-| ADD + SUB, round-to-odd | 131,072 | complete |
-| SQRT, ROUNDINT, ABS, CLASSIFY, NEG, COPYSIGN | 3,840 | complete |
-
-**Still to run at the current configuration:** the full 1.84M sweep. The
-subsets above target the paths the changes actually touch, but the sign-off
-claim requires the whole thing:
-
-```bash
-cd test && ./regress.sh          # all 14 opcodes, ~1.84M vectors
+```
+regress: jobs=12 gates=yes nvec=all
+         params: `define NRM_MW 8 `define NRM_G 4 `define NRM_ACCW 10 `define NRM_QDIV 5
+PASS  add    327680   PASS  scalb  327680   PASS  cvt_f2i  1280
+PASS  sub    327680   PASS  min     65536   PASS  cvt_f2u  1280
+PASS  mult   327680   PASS  max     65536   PASS  cvt_i2f  1280
+PASS  div    327680   PASS  compare 65536   PASS  cvt_u2f  1280
+PASS  sqrt     1280   PASS  abs       256   PASS  neg        256
+PASS  roundint 1280   PASS  classify  256   PASS  copysign   512
+ALL PASS
 ```
 
-Do this before re-hardening, and again with `GATES=yes` after.
+All 18 opcodes, all 5 rounding modes, no sampling at either level. The narrowed
+datapath is bit-exact with the original across the **complete input space of
+the format**, and that equivalence survives synthesis and place-and-route.
+
+Gate level cost only **~2.4× RTL runtime** on this design (~165 vs 403
+vectors/s), so the full sweep finished in under an hour on 12 cores — sampling
+turned out to be unnecessary.
+
+**This is the claim worth stating explicitly in the thesis**, because it is not
+available in wider formats. Exhaustive enumeration of a binary FP32 operation
+would need 2⁶⁴ cases; that impossibility is precisely why the classical
+literature verifies floating-point hardware with theorem proving (ACL2 at AMD,
+HOL Light at Intel) rather than by testing. In a minifloat format enumeration
+comes back within reach, and it is both cheaper and more direct than a
+machine-checked proof.
+
+Reproduce:
+
+```bash
+cd test
+JOBS=$(nproc) ./regress.sh                    # RTL
+GATES=yes JOBS=$(nproc) ./regress.sh          # post-PnR netlist
+```
 
 ## Known gaps
 
-- **Gate-level.** The table above is RTL simulation. The same two vector sets
-  should be replayed with `make GATES=yes` once the hardening run produces
-  `gate_level_netlist.v`. Until then the extended opcodes are signed off at RTL
-  only.
-- **CVT / FMA.** Not implemented; nothing to cover yet.
+- **FMA / wide accumulator.** Not implemented. A narrow FP8-accumulating FMA is
+  numerically useless — it swamps past N≈16 and overflows at 240 — and an exact
+  (Kulisch-style) accumulator needs 350–450 cells against a remaining budget of
+  roughly 345. It is therefore deferred to the FPGA build, where it can be
+  evaluated and quantified without an area ceiling.
+- **System integration.** The FPU is verified as a block. Coupling to a RISC-V
+  core (cv32e40x) and measuring speedup is future work — and does **not**
+  require an FPGA: cycle counts from a Verilator co-simulation are the same
+  numbers a board would produce.
+- **Third-party comparison.** Absolute area/power/frequency are reported, but
+  not yet compared against published FP8 units. Needed before submission.
 - **Historical note.** A real SCALB bug was found by the pyuvm constrained-random
   testbench (see the comment in `src/fp8_elastic_pipeline.v`) precisely because
-  SCALB was outside the golden-vector sign-off set. That gap is now closed.
+  SCALB was outside the golden-vector sign-off set. That gap is now closed —
+  and it is the concrete evidence that the coverage argument is not theoretical.
