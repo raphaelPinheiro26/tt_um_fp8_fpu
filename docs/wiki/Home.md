@@ -23,7 +23,7 @@ minifloat, enumeration comes back within reach.
 | Rounding | nearest-even, toward-zero, up, down, nearest-odd |
 | Process | `sky130A`, 1×2 tiles · previously `gf180mcu` at 2×2 (fabricated) |
 | Utilisation | 71.6 %, 0 detailed-routing violations |
-| Timing | +44.65 ns setup slack at 10 MHz; critical path 55.35 ns |
+| Timing | reg-to-reg critical path 15.8 ns at the slow corner (~63 MHz headroom) |
 | Power | ≈ 2.3 mW |
 | Verification | 1 843 968 vectors, exhaustive, RTL **and** gate level |
 
@@ -36,6 +36,10 @@ something.
 **Want to run it?** → [Getting Started](Getting-Started), then
 [End-to-End Setup](End-to-End-Setup) for the full simulation → verification →
 hardening flow.
+
+**New to floating point?** → [Floating-Point Primer](Floating-Point-Primer)
+explains the representation, IEEE-754 rules and the E4M3 format from first
+principles — including the trap that two different formats are called "E4M3".
 
 **Want to understand it?** → [Architecture](Design-Architecture) for the
 datapath and the Tiny Tapeout wrapper, [ISA Reference](ISA-Reference) for the

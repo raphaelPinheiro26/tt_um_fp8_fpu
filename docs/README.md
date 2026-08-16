@@ -15,6 +15,7 @@ chip**. Its path is fixed by the shuttle tooling, so it cannot move into
 | [Getting Started](wiki/Getting-Started.md) | Toolchain and first simulation |
 | [End-to-End Setup](wiki/End-to-End-Setup.md) | Full flow on WSL2: simulation → verification → LibreLane → metrics |
 | [Tools Cheatsheet](wiki/Tools-Cheatsheet.md) | Command reference |
+| [Floating-Point Primer](wiki/Floating-Point-Primer.md) | How floating point works, IEEE-754 rules, and the E4M3 format |
 | [Design Architecture](wiki/Design-Architecture.md) | Elastic datapath, the three result paths, and the Tiny Tapeout wrapper in detail |
 | [ISA Reference](wiki/ISA-Reference.md) | Opcodes, rounding modes, flags, exceptions |
 | [Pin Protocol](wiki/Pin-Protocol.md) | Cycle-by-cycle streaming protocol |
@@ -25,7 +26,7 @@ chip**. Its path is fixed by the shuttle tooling, so it cannot move into
 | [UVM](wiki/Verification-UVM.md) | pyuvm constrained-random |
 | [DFT](wiki/Verification-DFT.md) | Scan insertion, flop inventory |
 | [Results & Metrics](wiki/Results-and-Metrics.md) | Area, timing, power by change |
-| [Hardening](wiki/Hardening-and-Metrics.md) | LibreLane flow and outputs |
+| [Hardening](wiki/Hardening-and-Metrics.md) | Running LibreLane and reading its outputs |
 | [Area Runbook](wiki/Area-Runbook.md) | Reproducing the area numbers step by step |
 | [Timing Study](wiki/Timing-Study.md) | Clock sweep and Fmax |
 | [Combinational Optimization](wiki/Combinational-Optimization.md) | Techniques for reducing combinational logic |

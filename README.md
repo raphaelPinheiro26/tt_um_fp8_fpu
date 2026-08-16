@@ -25,7 +25,7 @@ still prove the result is bit-identical.
 | Operations | add · sub · mul · div · sqrt · min · max · abs · classify · compare · scalb · roundToIntegral · neg · copySign · **int8/uint8 ↔ fp8** |
 | Process | `sky130A` 1×2 tiles — previously `gf180mcu` 2×2 (fabricated) |
 | Utilisation | 71.6 %, **0** detailed-routing violations |
-| Timing | +44.65 ns setup slack @ 10 MHz · critical path 55.35 ns |
+| Timing | reg-to-reg critical path **15.8 ns** at the slow corner (~63 MHz of datapath headroom) |
 | Power | ≈ 2.3 mW |
 | Verification | **1 843 968 vectors, exhaustive, RTL and gate level** |
 
@@ -40,6 +40,7 @@ door.
 |---|---|
 | 🗂 [Project Structure](../../wiki/Project-Structure) | What every folder and file is for. **Start here if you cloned this.** |
 | 🚀 [Getting Started](../../wiki/Getting-Started) · [End-to-End Setup](../../wiki/End-to-End-Setup) | Toolchain, simulation, verification, hardening |
+| 📖 [Floating-Point Primer](../../wiki/Floating-Point-Primer) | How floating point works and why E4M3 — from first principles |
 | 🏗 [Architecture](../../wiki/Design-Architecture) | Elastic datapath and how the Tiny Tapeout wrapper works |
 | 📐 [ISA Reference](../../wiki/ISA-Reference) · [Pin Protocol](../../wiki/Pin-Protocol) | Encoding, flags, exceptions, cycle-by-cycle protocol |
 | 🤔 [Design Decisions](../../wiki/Design-Decisions) | Every non-obvious choice, the rejected alternative, and why — including what turned out wrong |

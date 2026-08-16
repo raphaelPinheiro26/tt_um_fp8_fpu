@@ -8,6 +8,9 @@
 - [End-to-End Setup](End-to-End-Setup)
 - [Tools Cheatsheet](Tools-Cheatsheet)
 
+**Concepts**
+- [Floating-Point Primer](Floating-Point-Primer)
+
 **Design**
 - [Architecture](Design-Architecture)
 - [ISA Reference](ISA-Reference)

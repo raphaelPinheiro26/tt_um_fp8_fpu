@@ -92,28 +92,80 @@ per-module table when adding logic, not just the total.
 
 ---
 
-## Timing
+## Timing — read the right number
 
-At the declared 10 MHz the design has enormous margin (+44.65 ns), which is
-also why it reports 988 max-slew violations: with that much slack the resizer
-has no reason to strengthen any driver. Both improve when the clock tightens.
+The single most misleading number in this project is the "critical path".
+`collect_metrics.py` reports `period − setup_slack = 55.35 ns`, implying a naive
+Fmax of ~18 MHz. **That is not a property of the circuit.**
+
+`summary.rpt` from the post-PnR STA separates the two:
+
+| Corner | Setup worst slack | Setup slack, **reg→reg only** |
+|---|---:|---:|
+| Overall (worst) | 44.65 ns | **84.17 ns** |
+| `nom_tt_025C_1v80` | 52.36 ns | 92.23 ns |
+| `nom_ss_100C_1v60` | 45.16 ns | 84.39 ns |
+
+They differ because **the worst setup path is not register-to-register**. It is
+`uio_in[5] → uio_out[1]` — `STICKY_B` to `IN_READY`, a purely combinational path
+through the wrapper's handshake logic — and the Tiny Tapeout `base.sdc` charges
+it **20 ns of input external delay plus 20 ns of output delay**. Those are
+default placeholders, not measurements of anything.
+
+So 40 of those 55.35 ns are an SDC assumption.
+
+The internal path:
+
+```
+T                                    = 100.00 ns
+worst-corner reg→reg setup slack     =  84.17 ns
+reg→reg critical path                =  15.83 ns   →  ~63 MHz
+```
 
 | | Value |
 |---|---|
 | Declared clock | 10 MHz (100 ns) |
-| Setup worst slack | +44.65 ns |
-| Critical path | 55.35 ns |
-| Naive Fmax | ≈ 18 MHz |
-| Hold worst slack | +0.116 ns |
+| **reg→reg critical path (worst corner)** | **15.83 ns** |
+| reg→reg critical path (typical corner) | 7.77 ns |
+| Datapath headroom | **~63 MHz** worst corner, ~129 MHz typical |
+| Hold worst slack (reg→reg) | +0.116 ns |
+| Setup violations | 0 in every corner |
 
-The naive Fmax understates the design. A clock sweep (`flow/sweep_clock.py`)
-pushes the tool to actually optimise the path; earlier sweeps on the previous
-netlist found a floor well below the relaxed-clock figure. **Re-run the sweep
-on the current netlist before quoting an Fmax.**
+### How to state this honestly
 
-The floor is the combinational C0 stage — unpack → pre-execute → execute →
-normalize, including the barrel shifter. Buffering cannot cross it; pipelining
-C0 is the lever for higher frequency.
+> The register-to-register critical path is 15.8 ns at the slow corner
+> (`ss`, 100 °C, 1.60 V), giving the datapath headroom to roughly 63 MHz. The
+> absolute worst setup path is port-to-port through the wrapper's handshake
+> logic and is dominated by the 40 ns of external I/O delay assumed by the
+> default Tiny Tapeout SDC, not by the design. The declared 10 MHz reflects the
+> serial streaming interface and a conservative I/O constraint, not the limit of
+> the arithmetic unit.
+
+**Do not write "Fmax = 63 MHz".** This is extrapolated from a run constrained at
+100 ns — the tool reached 15.8 ns without being asked to, but confirming it as a
+*closed* frequency would require re-hardening at that period, where hold, slew
+and routing all re-enter the picture. Say **headroom to ~63 MHz**, not
+*achieves*.
+
+This also settles what the bottleneck is: **the protocol adapter forced by the
+26-pin budget, not the arithmetic** — which is the direct argument for
+[attaching the core to a CPU](RISC-V-Integration), where the wrapper disappears
+entirely.
+
+### Two things to watch
+
+- **Hold slack is +0.116 ns**, and that one *is* reg→reg. Hold does not scale
+  with frequency so it will not degrade if the clock tightens, but it is thin
+  margin — check it after any datapath change.
+- **988 max-slew violations** appear only in the slow corners (107 in typical,
+  0 in fast). With +44 ns of slack the resizer has no reason to strengthen any
+  driver; they are a consequence of the relaxed constraint, not a defect.
+
+If a *closed* Fmax is ever needed, `flow/sweep_clock.py` re-hardens at tighter
+periods — but note that tightening the clock adds buffering, which adds area, on
+a design that already needed `PL_TARGET_DENSITY_PCT = 75` to route. It is
+plausible that this design is **area-limited before it is timing-limited** in
+1×2 tiles, which is itself a reportable result.
 
 ## Power
 
