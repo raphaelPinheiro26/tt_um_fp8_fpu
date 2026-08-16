@@ -7,7 +7,7 @@
 
 An 8-bit IEEE-style floating-point unit (FP8, **E4M3** format) wrapped for
 [Tiny Tapeout](https://tinytapeout.com), targeting the **SKY 26c** shuttle
-(ChipFoundry `sky130A`). It is a **12-operation** IEEE-754-style unit with
+(ChipFoundry `sky130A`). It is an **18-operation** IEEE-754-style unit with
 several rounding modes, classification flags and exception flags. Divide and
 square-root share a single **iterative, variable-latency** unit
 (`fp8_div_iter`, 1 digit/cycle); everything else is single-cycle in the pipeline.
@@ -30,12 +30,23 @@ square-root share a single **iterative, variable-latency** unit
 | 11 | ROUNDINT | A | FP8 = round-to-integral (rm selects the mode) |
 | 12 | NEG | A | FP8 = negate(A): A with the sign bit flipped |
 | 13 | COPYSIGN | A,B | FP8 = copySign(A,B): magnitude/payload of A, sign of B |
+| 14 | CVT_F2I | A | int8 (two's complement), saturating [-128,127] |
+| 15 | CVT_F2U | A | uint8, saturating [0,255] |
+| 16 | CVT_I2F | A | FP8 from int8 (never overflows) |
+| 17 | CVT_U2F | A | FP8 from uint8 (255 > 240 → can overflow) |
 
-Unary ops (SQRT, ABS, CLASSIFY, ROUNDINT, NEG) take A and ignore B. NEG and
-COPYSIGN are pure sign operations (bit-level, no exceptions, and they do not
-signal on NaN). The whole
-datapath is **exhaustively verified** against a Fraction-exact IEEE reference
-model (`Golden_model/fp8_math.py`).
+Unary ops (SQRT, ABS, CLASSIFY, ROUNDINT, NEG and the four conversions) take A
+and ignore B. NEG and COPYSIGN are pure sign operations (bit-level, no
+exceptions, and they do not signal on NaN). The conversions follow **RISC-V
+`FCVT` semantics**: round by the current mode first, then range-check and
+saturate, raising `invalid` on out-of-range and NaN — so a host CPU needs no
+software fix-up.
+
+The whole datapath is **exhaustively verified** against a `Fraction`-exact IEEE
+reference model (`Golden_model/fp8_math.py`): all **1,843,968** possible
+(operand, opcode, rounding-mode) combinations, at RTL **and** against the
+post-place-and-route netlist. Nothing is sampled at either level — see
+[`docs/COVERAGE.md`](docs/COVERAGE.md).
 
 The FPU core (`tiny_fp8_unit`) is an **elastic, pipelined** datapath with a wide
 handshake interface designed to sit next to a RISC-V core. That interface does
@@ -56,16 +67,20 @@ pass (see below). Latest sky130 hardening run (LibreLane, `CLOCK_PERIOD=100 ns`)
 |--------|-------|
 | Process / PDK | ChipFoundry `sky130A` (1.8 V) |
 | Tiles | 1×2 |
-| Logic cells (excl. fill/tap) | **2 396** |
-| Total cells (incl. fill/tap) | 5 470 |
-| Flip-flops (`dfrtp`) | **227** (hardened netlist; ≈161 at RTL synth, was 440) |
-| Multiplexers (`mux2`/`mux4`) | 257 |
-| Core utilisation | **72.4 %** |
-| Wire length | **89 432 µm** |
+| Core utilisation | **71.6 %** |
+| Wire length | **96 460 µm** |
+| Total instances (incl. fill/tap) | 5 510 |
 | Declared clock | 10 MHz |
-| Pipeline latency | 3 stages (was 4) |
-| **TT precheck** | **15 / 15 ✅** (Magic DRC · KLayout FEOL/BEOL/offgrid/pin/zero-area · pin/boundary/power/layer/cell-name/nwell · analog-pin · Verilog-syntax) |
-| **Gate-level tests** | **6 / 6 passed** |
+| Setup / hold worst slack | +44.65 ns / +0.116 ns |
+| Critical path | 55.35 ns (naive Fmax ≈ 18 MHz — see the sweep note below) |
+| Total power | ≈ 2.3 mW *(default switching activity)* |
+| Detailed routing | **0 violations** |
+| **Gate-level regression** | **1 843 968 vectors, all 18 opcodes, ALL PASS** |
+
+> Earlier runs in this table were for the 14-operation design before the
+> integer conversions were added and before the datapath-width pass; for the
+> comparison of *those* numbers against the current ones, see
+> [`docs/AREA-RUNBOOK.md`](docs/AREA-RUNBOOK.md).
 
 Characterization from the earlier clock-sweep run *(predates the netlist above;
 re-extract to refresh)*:
@@ -119,7 +134,7 @@ which — combined with the smaller sky130 HD cells — brings the design down t
 flags and exceptions are **bit-identical** to the previous design: the entire
 combinational datapath (unpack → pre-execute → execute → normalize → round) was
 proven equivalent to the original for **all 2²⁴ input combinations** by a yosys
-SAT miter, and the pipeline passes the full 30 482-vector golden regression plus
+SAT miter, and the pipeline passes the full 1,843,968-vector golden regression plus
 a randomised back-pressure stream test.
 
 1. **Depth-1 elastic pipeline registers.** `fp8_handshake_reg` was a 2-deep skid
@@ -265,7 +280,10 @@ them stable across the bytes of each later operation. See
 | 3.0   | 0 1000 100 | 0x44 |
 | 6.0   | 0 1001 100 | 0x4C |
 
-Opcodes: `ADD=00000`, `SUB=00001`, `MUL=00010`, `DIV=00011`.
+Opcodes (18 total, 0–17): `ADD=00000`, `SUB=00001`, `MUL=00010`, `DIV=00011`,
+`SQRT=00100`, `MIN=00101`, `MAX=00110`, `ABS=00111`, `CLASSIFY=01000`,
+`COMPARE=01001`, `SCALB=01010`, `ROUNDINT=01011`, `NEG=01100`, `COPYSIGN=01101`,
+`CVT_F2I=01110`, `CVT_F2U=01111`, `CVT_I2F=10000`, `CVT_U2F=10001`.
 The full opcode, rounding-mode, flag and exception tables are in
 [`docs/wiki/ISA-Reference.md`](docs/wiki/ISA-Reference.md) (from
 [`src/header_fp8.v`](src/header_fp8.v)).
