@@ -194,24 +194,143 @@ current  = 3309 * 0.67641 = ~2238 cells
 
 ## 4. Gate-level regression
 
-Synthesis and place-and-route can break what RTL simulation proved. Replay the
-same vectors against the post-PnR netlist:
+Synthesis and place-and-route can break what RTL simulation proved, so the
+post-PnR netlist has to be replayed too.
+
+**What gate level is for.** The arithmetic is already proven — the RTL sweep
+covers the *complete* input space of the format, and no gate-level run can
+strengthen that. What gate level catches is a different class of defect:
+X-propagation from uninitialised flops, a mis-mapped cell, a netlist that does
+not match the RTL, tie cells left floating. Those show up in the first few
+thousand vectors or not at all.
+
+**Measured cost on this design: gate level is only ~2.4× slower than RTL.**
+Same 2000-vector streaming test: 4.96 s at RTL, 12.11 s at gate level — about
+403 vs 165 vectors/s. The often-quoted "10–50× slower" does not apply to a
+design this small; `-DUNIT_DELAY=#1` costs little here.
+
+That makes the **full exhaustive sweep affordable**: the largest opcodes are
+327,680 vectors (~33 min each), they run in parallel, so 1,843,968 vectors
+finish in roughly **40–50 minutes of wall clock on 12 cores**. Do that rather
+than sampling — it upgrades the claim from "RTL exhaustive, gate level
+sampled" to *both* exhaustive.
+
+Sampling (§4.4) stays documented for when you are iterating and want a fast
+answer, or on a slower machine.
+
+### 4.1 Environment
+
+Everything below needs the venv **and** `PDK_ROOT` — the Makefile pulls the
+sky130 cell models from it. `regress.sh` checks both and tells you which is
+missing.
+
+```sh
+cd ~/tt_um_fp8_fpu
+source ~/.venvs/fp8/bin/activate
+```
+
+**`PDK_ROOT` is almost certainly not `~/ttsetup/pdk`.** LibreLane resolves the
+PDK through ciel, which stores it under a *version hash*, so `--harden` works
+while the test Makefile — which expects the classic `$PDK_ROOT/sky130A/...`
+layout — fails with:
+
+```
+make: *** No rule to make target '.../sky130A/libs.ref/.../primitives.v'
+```
+
+Derive it instead of guessing. `PDK_ROOT` must be the directory that
+**contains** `sky130A/`:
+
+The ciel version directory usually holds **both `sky130A` and `sky130B`**. Pin
+the search to `sky130A` (what TT targets) — an unanchored `find` will happily
+return the `sky130B` copy, the suffix strip then matches nothing, and
+`PDK_ROOT` silently becomes the full file path:
+
+```sh
+SKYV=$(find ~/ttsetup -path "*/sky130A/libs.ref/sky130_fd_sc_hd/verilog/primitives.v" 2>/dev/null | head -1)
+if [ -z "$SKYV" ]; then
+  echo "primitives.v not found under sky130A — check what ciel actually fetched:"
+  ls -d ~/ttsetup/pdk/ciel/sky130/versions/*/sky130*/libs.ref/sky130_fd_sc_hd/verilog
+else
+  export PDK_ROOT=${SKYV%%/sky130A/*}
+  echo "PDK_ROOT=$PDK_ROOT"
+  ls -l $PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/verilog/{primitives.v,sky130_fd_sc_hd.v}
+fi
+```
+
+Typical result — note the hash:
+
+```
+PDK_ROOT=/home/rapha/ttsetup/pdk/ciel/sky130/versions/8afc8346a57fe1ab7934...
+```
+
+Worth adding to your shell profile, since every gate-level session needs it.
+
+### 4.2 Copy the netlist
 
 ```sh
 cd test
 TOP=$(cd .. && ./tt/tt_tool.py --print-top-module)
+echo "top = $TOP"
+
+# the post-PnR netlist; if the path differs, find it:
+find ../runs -name "*.pnl.v" -o -name "*.nl.v" | tail -5
+
 cp ../runs/wokwi/final/pnl/$TOP.pnl.v gate_level_netlist.v
-
-# smoke first — the gate-level sim is far slower than RTL
-FP8_NVEC=5000 make -B GATES=yes
-
-# then the full sweep
-GATES=yes JOBS=$(nproc) ./regress.sh
-cd ..
+ls -lh gate_level_netlist.v          # sanity: hundreds of KB, not empty
 ```
 
-Gate-level is slow enough that the full 1.84M sweep is an overnight job. Run the
-5000-vector smoke before committing to it.
+### 4.3 Smoke — minutes
+
+```sh
+FP8_NVEC=2000 make -B GATES=yes
+```
+
+Expect `TESTS=6 PASS=6`. If the netlist is bad this fails immediately, and the
+signature is usually **`x` in the compared bytes** rather than a plausible
+wrong number. That means X-propagation from uninitialised state, not an
+arithmetic bug — do not go looking in the datapath.
+
+### 4.4 Full sweep — 40–50 min on 12 cores (preferred)
+
+```sh
+GATES=yes JOBS=$(nproc) ./regress.sh
+```
+
+All 18 opcodes, 1,843,968 vectors, against the post-PnR netlist. This is the
+one to run for sign-off.
+
+If you need a fast answer instead — mid-iteration, or on a slower machine —
+sample:
+
+```sh
+NVEC=20000 GATES=yes JOBS=$(nproc) ./regress.sh
+```
+
+20 000 per opcode, sampled evenly across operands and rounding modes by the
+testbench loader, plus the back-pressure pass. Roughly 300 k vectors total,
+covering every opcode and every rounding mode. Sampled runs are marked in the
+summary:
+
+```
+PASS  add            20000 / 327680 vectors (sampled)
+PASS  abs              256 vectors
+```
+
+Opcodes with fewer vectors than `NVEC` (abs, classify, sqrt, roundint, neg,
+copysign and the four conversions) are still replayed **exhaustively**, free.
+
+### 4.5 Record
+
+| Check | Result |
+|---|---|
+| Smoke `FP8_NVEC=2000 GATES=yes` | |
+| Sampled sweep `NVEC=20000` | |
+| Any `x` in compared bytes | should be none |
+
+State it honestly in the thesis: **RTL is signed off exhaustively, gate level
+is signed off by sampling.** That is the normal split; claiming more from a
+gate-level run would be overselling it.
 
 ---
 
