@@ -219,7 +219,7 @@ small sky130 cells, while what remains concentrates flip-flops and complex
 cells. Scaling generic gate counts by a single ratio was wrong by roughly 3×.
 
 **Lesson: measure with `stat -liberty` against the PDK, not with generic gate
-counts.** See `docs/COMB-OPT.md`.
+counts.** See [Combinational-Optimization](Combinational-Optimization).
 
 The result that mattered more was not area but **routing**: 16.7 mm less wire
 on a design that already needed `GRT_ALLOW_CONGESTION: 1` at 72 % utilisation.

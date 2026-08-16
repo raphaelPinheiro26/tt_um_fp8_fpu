@@ -1,26 +1,32 @@
 # Documentation
 
 All project documentation lives in **[`wiki/`](wiki/)** — the single source of
-truth, formatted as GitHub Wiki pages (all English). Start at
-[`wiki/Home.md`](wiki/Home.md).
+truth, written as GitHub Wiki pages (English). The `docs` workflow publishes it
+to the repository Wiki on every push. Start at [`wiki/Home.md`](wiki/Home.md).
+
+`info.md` in this folder is the **datasheet Tiny Tapeout publishes with the
+chip**. Its path is fixed by the shuttle tooling, so it cannot move into
+`wiki/`. Keep it in sync with the ISA and pin protocol pages.
 
 | Page | What it covers |
 |------|----------------|
-| [Home](wiki/Home.md) | Project overview + highlights |
-| [Getting Started](wiki/Getting-Started.md) | End-to-end WSL2 setup: sim → verification → hardening |
-| [Tools Cheatsheet](wiki/Tools-Cheatsheet.md) | What each tool does, the flow order, PDKs |
-| [Design Architecture](wiki/Design-Architecture.md) | Microarchitecture + elastic pipeline |
-| [ISA Reference](wiki/ISA-Reference.md) | Format, opcodes, rounding modes, flags, exceptions |
-| [Pin Protocol](wiki/Pin-Protocol.md) | Streaming valid/ready pin protocol (cycle-by-cycle) |
-| [Simulation & Tests](wiki/Simulation-and-Tests.md) | cocotb suite, block tests, legacy TBs, golden model |
-| [Verification-Formal](wiki/Verification-Formal.md) | SymbiYosys handshake/pipeline proofs |
-| [Verification-UVM](wiki/Verification-UVM.md) | pyuvm testbench + the RTL bug it found |
-| [Verification-DFT](wiki/Verification-DFT.md) | DFT concepts + scan example |
-| [Hardening & Metrics](wiki/Hardening-and-Metrics.md) | GDS, timing, area, power |
-| [Timing Study](wiki/Timing-Study.md) | sky130 characterisation + optimisation roadmap |
-
-**[`info.md`](info.md)** is the Tiny Tapeout datasheet text — Tiny Tapeout's docs
-workflow reads it from this fixed path.
-
-Each code folder (`test/`, `sim/`, `Golden_model/`, `flow/`, `verification/`, …)
-has a short `README.md` stub that points to its wiki page.
+| [Home](wiki/Home.md) | Landing page and navigation |
+| [Project Structure](wiki/Project-Structure.md) | Every folder and file, and what to touch to change something |
+| [Getting Started](wiki/Getting-Started.md) | Toolchain and first simulation |
+| [End-to-End Setup](wiki/End-to-End-Setup.md) | Full flow on WSL2: simulation → verification → LibreLane → metrics |
+| [Tools Cheatsheet](wiki/Tools-Cheatsheet.md) | Command reference |
+| [Design Architecture](wiki/Design-Architecture.md) | Elastic datapath, the three result paths, and the Tiny Tapeout wrapper in detail |
+| [ISA Reference](wiki/ISA-Reference.md) | Opcodes, rounding modes, flags, exceptions |
+| [Pin Protocol](wiki/Pin-Protocol.md) | Cycle-by-cycle streaming protocol |
+| [Design Decisions](wiki/Design-Decisions.md) | Every non-obvious choice and its rejected alternative |
+| [Coverage & Sign-off](wiki/Coverage-and-Signoff.md) | Exhaustive verification: what is proven and what is not |
+| [Simulation & Tests](wiki/Simulation-and-Tests.md) | cocotb testbenches |
+| [Formal](wiki/Verification-Formal.md) | SymbiYosys proofs |
+| [UVM](wiki/Verification-UVM.md) | pyuvm constrained-random |
+| [DFT](wiki/Verification-DFT.md) | Scan insertion, flop inventory |
+| [Results & Metrics](wiki/Results-and-Metrics.md) | Area, timing, power by change |
+| [Hardening](wiki/Hardening-and-Metrics.md) | LibreLane flow and outputs |
+| [Area Runbook](wiki/Area-Runbook.md) | Reproducing the area numbers step by step |
+| [Timing Study](wiki/Timing-Study.md) | Clock sweep and Fmax |
+| [Combinational Optimization](wiki/Combinational-Optimization.md) | Techniques for reducing combinational logic |
+| [RISC-V Integration](wiki/RISC-V-Integration.md) | Coupling the core to CV32E40X or PicoRV32 |

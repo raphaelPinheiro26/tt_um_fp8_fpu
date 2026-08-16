@@ -41,7 +41,7 @@ Carry only bits that can affect the output. This project's two biggest wins:
 
 Method: parameterise the width, sweep it downward, and let an exhaustive vector
 set tell you the floor. Do not derive it by hand — see the two sticky bugs in
-`docs/COVERAGE.md` that a hand derivation missed.
+[Coverage-and-Signoff](Coverage-and-Signoff) that a hand derivation missed.
 
 This generalises, and for low-precision formats it is a publishable result in
 its own right: minimal datapath width analysis for reduced-precision FP.

@@ -4,7 +4,7 @@ Focused procedure to (a) prove the narrowed datapath is still correct, (b) get
 the real sky130 area/timing numbers, and (c) decide how much of CVT/FMA fits in
 the remaining budget.
 
-Toolchain setup is **not** repeated here — see `SETUP_END_TO_END.md` (local) or
+Toolchain setup is **not** repeated here — see [End-to-End-Setup](End-to-End-Setup) (local) or
 `docs/wiki/Getting-Started.md`. This assumes WSL2 with the venv, Docker and
 LibreLane already working.
 
@@ -370,7 +370,7 @@ In rough order of return per unit of risk:
    `ENABLE_RM_EXOTIC` (ML only ever uses RNE), `ENABLE_MINMAX_SCALB`. The FPGA
    build keeps everything; the ASIC build drops what does not fit. Bonus: it
    yields an area-vs-features table for the thesis.
-2. **Liberty-driven synthesis exploration.** See `docs/COMB-OPT.md` — a stronger
+2. **Liberty-driven synthesis exploration.** See [Combinational-Optimization](Combinational-Optimization) — a stronger
    ABC script costs nothing and is risk-free.
 3. **`fp8_pre_execute` restructuring** (277 lines of per-opcode special-case
    branching). Likely redundancy between the MULT/DIV and ADD/SUB branches, but
