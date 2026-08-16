@@ -274,6 +274,29 @@ JOBS=$(nproc) ./regress.sh                    # RTL
 GATES=yes JOBS=$(nproc) ./regress.sh          # post-PnR netlist
 ```
 
+## Verification stack
+
+Five independent layers, all green on the 18-opcode design:
+
+| Layer | Tool | What it establishes | Status |
+|---|---|---|---|
+| Top-level golden vectors | cocotb + Icarus | Result, flags and exceptions for **every** input, RTL and post-PnR | 1 843 968 vectors, ALL PASS at both levels |
+| Block-level | cocotb | `tiny_fp8_unit`, pipeline, controller, handshake in isolation | pass |
+| Constrained-random | pyuvm | Sequences the vector set does not generate; scoreboard vs the same reference model | pass, all 18 opcodes |
+| Formal | SymbiYosys + yosys | Protocol properties of the elastic pipeline: output persistence, `valid_out` stickiness, liveness; plus SAT equivalence for datapath refactors | ALL FORMAL TASKS PASSED |
+| DFT | yosys | Scan-register insertion and flop inventory | pass |
+
+Two notes worth keeping:
+
+- The formal wrapper leaves `opcode` **unconstrained** (a free 5-bit input), so
+  its protocol properties automatically extended to the four new conversion
+  opcodes with no change to the proof. Protocol properties that do not
+  enumerate the instruction set age well; ones that do, do not.
+- The layers genuinely catch different things. The pyuvm testbench is what
+  found the SCALB bug that motivated the whole coverage pass — SCALB was
+  outside the golden-vector set at the time. Redundancy across layers is not
+  waste here; it is the reason that bug was not taped out.
+
 ## Known gaps
 
 - **FMA / wide accumulator.** Not implemented. A narrow FP8-accumulating FMA is
