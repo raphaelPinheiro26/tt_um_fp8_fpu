@@ -151,7 +151,8 @@ python3 flow/collect_metrics.py --run runs/wokwi --out flow/reports/fp8_narrow
 | Flip-flops | 227 | *pending* | |
 | Setup worst slack (ns) @ T=100 | | **45.893** | |
 | Critical path (ns) | | **54.107** | |
-| Estimated Fmax (MHz) | | **18.48** | |
+| reg→reg critical path (ns) | | **15.83** worst corner | |
+| Datapath headroom | | **~63 MHz** | |
 | Hold worst slack (ns) | | +0.115 | |
 | Total power (W) | | 0.0013 | |
 | Max slew violations | | 614 | |
@@ -175,6 +176,12 @@ python3 flow/collect_metrics.py --run runs/wokwi --out flow/reports/fp8_narrow
 
 The exact logic-cell and flip-flop counts are in the **gds workflow summary**
 ("Cell usage by Category"), not in `--print-stats` or `collect_metrics.py`.
+
+> **Do not record `period − setup_slack` as the critical path.** In this design
+> the worst setup path is port-to-port through the wrapper and carries 40 ns of
+> SDC I/O assumption. Read the **`Reg to Reg`** column of
+> `runs/wokwi/*-openroad-stapostpnr/summary.rpt` instead — see
+> [Timing Study](Timing-Study).
 
 ### Budget
 

@@ -210,3 +210,4 @@ Kept deliberately — the corrections are more useful than the conclusions.
 | The combinational divider was the area hog | It was already iterative and costs ~45 flops. |
 | A placement density target below utilisation is infeasible | The previous run disproves it. |
 | The committed `vectors.hex` was a 30k sample | It was the full 1.3M set; the README was stale. |
+| `period − setup_slack` is the critical path | It mixed 40 ns of SDC I/O assumption with the real path. The reg→reg path is 15.8 ns, not 55.35. |

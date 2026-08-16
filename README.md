@@ -23,7 +23,7 @@ still prove the result is bit-identical.
 |---|---|
 | Format | FP8 E4M3 — 1 sign, 4 exponent (bias 7), 3 mantissa |
 | Operations | add · sub · mul · div · sqrt · min · max · abs · classify · compare · scalb · roundToIntegral · neg · copySign · **int8/uint8 ↔ fp8** |
-| Process | `sky130A` 1×2 tiles — previously `gf180mcu` 2×2 (fabricated) |
+| Process | `sky130A` 1×2 tiles — previously `gf180mcu` 2×2 (simulated) |
 | Utilisation | 71.6 %, **0** detailed-routing violations |
 | Timing | reg-to-reg critical path **15.8 ns** at the slow corner (~63 MHz of datapath headroom) |
 | Power | ≈ 2.3 mW |
