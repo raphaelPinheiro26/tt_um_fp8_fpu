@@ -27,10 +27,19 @@ EXP_W = 4
 OP_ADD, OP_SUB, OP_MULT, OP_DIV, OP_SQRT = 0, 1, 2, 3, 4
 OP_MIN, OP_MAX, OP_ABS, OP_CLASSIFY, OP_COMPARE, OP_SCALB, OP_ROUNDINT = 5, 6, 7, 8, 9, 10, 11
 OP_NEG, OP_COPYSIGN = 12, 13
+# integer conversions (RISC-V FCVT semantics: round per rm, then range-check
+# and saturate; NaN/Inf saturate too and raise invalid)
+OP_CVT_F2I, OP_CVT_F2U, OP_CVT_I2F, OP_CVT_U2F = 14, 15, 16, 17
 OP_NAMES = {OP_ADD: "ADD", OP_SUB: "SUB", OP_MULT: "MULT", OP_DIV: "DIV", OP_SQRT: "SQRT",
             OP_MIN: "MIN", OP_MAX: "MAX", OP_ABS: "ABS", OP_CLASSIFY: "CLASSIFY",
             OP_COMPARE: "COMPARE", OP_SCALB: "SCALB", OP_ROUNDINT: "ROUNDINT",
-            OP_NEG: "NEG", OP_COPYSIGN: "COPYSIGN"}
+            OP_NEG: "NEG", OP_COPYSIGN: "COPYSIGN",
+            OP_CVT_F2I: "CVT_F2I", OP_CVT_F2U: "CVT_F2U",
+            OP_CVT_I2F: "CVT_I2F", OP_CVT_U2F: "CVT_U2F"}
+
+# integer ranges of the conversion targets
+INT8_MIN, INT8_MAX = -128, 127
+UINT8_MIN, UINT8_MAX = 0, 255
 
 # rounding modes
 RM_NEAREST, RM_ZERO, RM_UP, RM_DOWN, RM_ODD = 0, 1, 2, 3, 4

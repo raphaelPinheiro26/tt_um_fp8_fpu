@@ -32,11 +32,13 @@ def predict(a, b, opcode, rm):
 # Opcodes that take two operands (B is meaningful). Unary ops ignore B; the
 # random sequence still drives a B byte over the wire (the protocol always
 # sends it in non-sticky mode), but the reference ignores it for those ops.
+# As quatro conversoes (14..17) sao UNARIAS em A e por isso NAO entram aqui.
 BINARY_OPS = {0, 1, 2, 3, 5, 6, 9, 13}   # ADD SUB MUL DIV MIN MAX COMPARE COPYSIGN
 
 OP_NAMES = {
     0: "ADD", 1: "SUB", 2: "MUL", 3: "DIV", 4: "SQRT", 5: "MIN", 6: "MAX",
     7: "ABS", 8: "CLASSIFY", 9: "COMPARE", 10: "SCALB", 11: "ROUNDINT",
     12: "NEG", 13: "COPYSIGN",
+    14: "CVT_F2I", 15: "CVT_F2U", 16: "CVT_I2F", 17: "CVT_U2F",
 }
 RM_NAMES = {0: "RNE", 1: "RTZ", 2: "RUP", 3: "RDN", 4: "RODD"}

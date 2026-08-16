@@ -10,8 +10,9 @@ from pyuvm import uvm_sequence
 from fp8_item import Fp8Cmd
 
 # Default opcode/rounding pools. DIV/SQRT exercise the variable-latency path.
-ALL_OPS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+ALL_OPS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
 ARITH_OPS = [0, 1, 2, 3]           # ADD SUB MUL DIV
+CVT_OPS = [14, 15, 16, 17]         # F2I F2U I2F U2F (unarias em A)
 ALL_RMS = [0, 1, 2, 3, 4]          # RNE RTZ RUP RDN RODD
 
 
