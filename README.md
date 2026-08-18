@@ -6,8 +6,13 @@
 
 # FP8 (E4M3) Floating-Point Unit — Tiny Tapeout
 
-An 8-bit IEEE-style FPU in silicon: **18 operations, five rounding modes, full
-IEEE flags and exceptions**, in 1×2 tiles of ChipFoundry `sky130A`.
+An 8-bit IEEE-style FPU: **18 operations, five rounding modes, full IEEE flags
+and exceptions**, in 1×2 tiles of ChipFoundry `sky130A`.
+
+<p align="center">
+  <img src="docs/assets/gds-3d-viewer.gif" width="820"
+       alt="Layer-by-layer walkthrough of the hardened GDS — standard cells, li1 local interconnect, met1 to met4 routing">
+</p>
 
 **Every possible input is tested.** All 1,843,968 combinations of operands,
 opcode and rounding mode are replayed against an exact reference model — at RTL
@@ -16,14 +21,19 @@ opcode and rounding mode are replayed against an exact reference model — at RT
 That is not achievable in wider formats: a binary FP32 operation has 2⁶⁴ input
 combinations, which is why floating-point hardware is normally verified by
 theorem proving instead. In a minifloat, exhaustive enumeration comes back
-within reach — and it is what made it safe to shrink the datapath by 22 % and
-still prove the result is bit-identical.
+within reach — and it is what made it safe to cut the datapath widths to their
+proven floor while adding four new operations.
+
+<p align="center">
+  <img src="docs/assets/ops-vs-area.png" width="620"
+       alt="More operations, less silicon: 14 to 18 operations while logic gates fell from 5266 to 4079">
+</p>
 
 | | |
 |---|---|
 | Format | FP8 E4M3 — 1 sign, 4 exponent (bias 7), 3 mantissa |
 | Operations | add · sub · mul · div · sqrt · min · max · abs · classify · compare · scalb · roundToIntegral · neg · copySign · **int8/uint8 ↔ fp8** |
-| Process | `sky130A` 1×2 tiles — previously `gf180mcu` 2×2 (simulated) |
+| Process | `sky130A` 1×2 tiles — earlier `gf180mcu` 2×2 hardening run (local) |
 | Utilisation | 71.6 %, **0** detailed-routing violations |
 | Timing | reg-to-reg critical path **15.8 ns** at the slow corner (~63 MHz of datapath headroom) |
 | Power | ≈ 2.3 mW |
