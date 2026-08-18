@@ -76,6 +76,15 @@
 `define OPCODE_ROUNDINT 5'b01011
 `define OPCODE_NEG      5'b01100    // negate(A): copia A com o sinal invertido
 `define OPCODE_COPYSIGN 5'b01101    // copySign(A,B): magnitude de A, sinal de B
+// Conversoes inteiro <-> fp8. Semantica RISC-V FCVT: arredonda pelo rm e
+// DEPOIS checa a faixa, saturando no extremo com INVALID. A IEEE-754 deixa
+// esse resultado nao especificado; fixar o valor do RISC-V custa ~20 celulas
+// e torna o modelo de referencia total (toda entrada tem saida definida).
+// Todas sao UNARIAS em A.
+`define OPCODE_CVT_F2I  5'b01110    // fp8   -> int8   (satura [-128,127])
+`define OPCODE_CVT_F2U  5'b01111    // fp8   -> uint8  (satura [0,255])
+`define OPCODE_CVT_I2F  5'b10000    // int8  -> fp8    (nunca estoura)
+`define OPCODE_CVT_U2F  5'b10001    // uint8 -> fp8    (255 > 240: pode estourar)
 
 // ======================================================================
 // MODOS DE ARREDONDAMENTO
@@ -118,8 +127,35 @@
 //   NRM_ACCW : largura do acumulador ADD/SUB = 4 + NRM_G + 2
 //   NRM_QDIV : bits de fração do quociente da divisão
 //                (o quociente cru tem NRM_QDIV+5 bits)
-`define NRM_G     20
-`define NRM_ACCW  26
+//
+// NRM_G era 20, dimensionado para que o alinhamento do ADD/SUB fosse
+// SEMPRE exato (d_align maximo = 16). Isso tornava o sticky codigo morto:
+// nenhum bit era jamais descartado. Com o sticky corrigido — saida
+// separada do fp8_execute_comb, aplicada DEPOIS da normalizacao, e
+// entrando como BORROW no caminho de subtracao — o acumulador foi
+// reduzido ao piso. Equivalencia bit-a-bit verificada exaustivamente:
+// ADD/SUB 655.360 vetores e MULT 327.680, nos 5 modos de arredondamento.
+//
+// PISO: fp8_normalize faz mag = {{(ACCW-(QDIV+5)){1'b0}}, in_quot}, logo
+//       NRM_ACCW >= NRM_QDIV+5 = 10. NRM_G=4 ja' esta' nesse piso; nao
+//       reduza mais sem antes reduzir NRM_QDIV.
+// NRM_MW : largura do barramento pre-arredondamento (norm_mant_wide).
+//   Layout: [MW-1]=hidden, [MW-2:MW-4]=mant3, [MW-5]=guard, [MW-6]=round,
+//           [MW-7:0]=campo de sticky.
+//
+//   Era 16 fixo. O conteudo util sao 7 bits (hidden + 3 de mantissa +
+//   guard + round + sticky); os 9 bits restantes existiam apenas para
+//   sobreviver ao deslocamento de desnormalizacao no fp8_round. Com o
+//   sticky OR-reduzido corretamente esse campo pode ser minimo.
+//
+//   PISO: o MULT injeta seu produto de 8 bits no topo do barramento
+//         (fp8_normalize: ml_wide = {in_prod, ...}), logo NRM_MW >= 8.
+//         Este e' o unico barramento REGISTRADO destes tres parametros:
+//         reduzi-lo economiza flops no RA do pipeline elastico.
+`define NRM_MW    8
+
+`define NRM_G     4
+`define NRM_ACCW  10
 `define NRM_QDIV  5
 
 `endif // HEADER_FP8_V

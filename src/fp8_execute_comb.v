@@ -41,6 +41,12 @@ module fp8_execute_comb (
     // ADD/SUB cru
     output wire [`NRM_ACCW-1:0]    exec_acc,
     output wire signed [5:0]       exec_big_e,
+    // sticky do alinhamento do ADD/SUB. NAO e' injetado no acumulador: se
+    // fosse, o deslocamento a esquerda da normalizacao (cancelamento) o
+    // carregaria para dentro das posicoes de guard/round e ele passaria a
+    // ser lido como um bit exato. Sai separado e o fp8_normalize o aplica
+    // DEPOIS de normalizar, na posicao de sticky, junto com o remnz do DIV.
+    output wire                    exec_sticky,
     // MULT cru
     output wire [7:0]              exec_prod,
     output wire signed [5:0]       exec_e_base,
@@ -127,8 +133,23 @@ module fp8_execute_comb (
     localparam integer ACCW = `NRM_ACCW;   // largura do acumulador (folga p/ carry) = 4 + G + 2
     localparam [5:0]   ACCW6 = `NRM_ACCW;  // mesma constante em 6 bits (comparar c/ d_align)
 
+    // ---- CVT inteiro -> fp8 -------------------------------------------
+    // Um inteiro n com MSB no bit k vale 1.xxx * 2^k. Colocando n nos bits
+    // baixos do acumulador e usando ebase = off (= G+4), o fp8_normalize
+    // calcula e_real = ebase + (msb - off) = msb, que e' exatamente k.
+    // Assim as conversoes reaproveitam a LZC, o shifter e o fp8_round
+    // inteiros, sem hardware novo de normalizacao/arredondamento.
+    localparam signed [5:0] CVT_EBASE = G + 4;
+    wire        is_i2f    = (opcode == `OPCODE_CVT_I2F);
+    wire        is_u2f    = (opcode == `OPCODE_CVT_U2F);
+    wire        is_cvt_if = is_i2f | is_u2f;
+    wire [7:0]  cvt_in    = {signA, expA, mantA};        // A cru (e' um inteiro)
+    wire        cvt_neg   = is_i2f & cvt_in[7];          // U2F nunca e' negativo
+    wire [7:0]  cvt_mag   = cvt_neg ? (~cvt_in + 8'd1) : cvt_in;
+
     reg                 as_sign;
     reg                 as_zero;
+    reg                 as_sticky;
     reg  [ACCW-1:0]     as_acc;            // acumulador (magnitude)
     reg  signed [5:0]   as_big_e;
 
@@ -154,11 +175,17 @@ module fp8_execute_comb (
         sticky_align = 1'b0;
         as_sign      = 1'b0;
         as_zero      = 1'b0;
+        as_sticky    = 1'b0;
         as_acc       = {ACCW{1'b0}};
         as_big_e     = 6'sd0;
 
         // seleciona maior expoente
-        if (zA && zB) begin
+        if (is_cvt_if) begin
+            as_sign  = cvt_neg;
+            as_zero  = (cvt_mag == 8'd0);
+            as_acc   = {{(ACCW-8){1'b0}}, cvt_mag};      // ACCW=10 > 8
+            as_big_e = CVT_EBASE;
+        end else if (zA && zB) begin
             as_sign = signA & signB_eff; as_zero = 1'b1; as_acc = {ACCW{1'b0}};
             as_big_e = 6'sd0;
         end else if (zA) begin
@@ -190,20 +217,29 @@ module fp8_execute_comb (
             small_sh = (d_align >= ACCW6) ? {ACCW{1'b0}} : (small_m >> d_align);
 
             if (big_s == small_s) begin
+                // SOMA: os bits descartados so' aumentam o resultado
+                // verdadeiro; representa-lo por baixo com sticky=1 ja' e'
+                // a forma correta para o arredondamento.
                 as_acc  = big_m + small_sh;
                 as_sign = big_s;
             end else begin
+                // SUBTRACAO: os bits descartados tornam o subtraendo MAIOR,
+                // logo o resultado verdadeiro e' MENOR que (big - small_sh).
+                // Sinalizar sticky nao basta: e' preciso tomar emprestado 1
+                // ulp do acumulador. O valor exato passa a estar no intervalo
+                // (as_acc, as_acc+1), que e' exatamente o que sticky=1
+                // representa para o arredondador.
                 if (big_m >= small_sh) begin
-                    as_acc  = big_m - small_sh;
+                    as_acc  = big_m - small_sh - {{(ACCW-1){1'b0}}, sticky_align};
                     as_sign = big_s;
                 end else begin
                     as_acc  = small_sh - big_m;
                     as_sign = small_s;
                 end
             end
-            // injeta sticky do alinhamento no bit0
-            as_acc = as_acc | {{(ACCW-1){1'b0}}, sticky_align};
-            as_zero = (as_acc == {ACCW{1'b0}});
+            // sticky sai separado (aplicado pos-normalizacao, ver acima)
+            as_sticky = sticky_align;
+            as_zero = (as_acc == {ACCW{1'b0}}) && !sticky_align;
             as_big_e = big_e;
         end
     end
@@ -242,17 +278,21 @@ module fp8_execute_comb (
     // ==================================================================
     // sinal e is_zero já selecionados pelo opcode; os barramentos crus de
     // cada operação saem em paralelo e o fp8_normalize seleciona/normaliza.
-    assign exec_sign = (opcode == `OPCODE_ADD || opcode == `OPCODE_SUB) ? as_sign :
+    // o caminho do acumulador serve ADD/SUB e tambem as conversoes int->fp8
+    wire use_as_path = (opcode == `OPCODE_ADD) || (opcode == `OPCODE_SUB) || is_cvt_if;
+
+    assign exec_sign = use_as_path ? as_sign :
                        (opcode == `OPCODE_MULT) ? ml_sign :
                        is_sqrt ? 1'b0 : dv_sign;   // SQRT: resultado sempre +
 
-    assign exec_is_zero = (opcode == `OPCODE_ADD || opcode == `OPCODE_SUB) ? as_zero :
+    assign exec_is_zero = use_as_path ? as_zero :
                           (opcode == `OPCODE_MULT) ? ml_zero :
                           is_sqrt ? 1'b0 : dv_zero;
 
     // ADD/SUB cru
     assign exec_acc     = as_acc;
     assign exec_big_e   = as_big_e;
+    assign exec_sticky  = as_sticky;
     // MULT cru
     assign exec_prod    = ml_prod;
     assign exec_e_base  = ml_e_base;

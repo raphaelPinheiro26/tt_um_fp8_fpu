@@ -82,6 +82,7 @@ module fp8_elastic_pipeline (
     wire               exec_sign, exec_is_zero;
     wire [`NRM_ACCW-1:0]  exec_acc;
     wire signed [5:0]  exec_big_e;
+    wire               exec_sticky;
     wire [7:0]         exec_prod;
     wire signed [5:0]  exec_e_base;
     wire [3:0]         exec_mA4, exec_mB4;
@@ -94,7 +95,7 @@ module fp8_elastic_pipeline (
         .mantA(s1_mantA), .mantB(s1_mantB), .flagsA(s1_flagsA), .flagsB(s1_flagsB),
         .opcode(opcode), .signB_eff(signB_eff),
         .exec_sign(exec_sign), .exec_is_zero(exec_is_zero),
-        .exec_acc(exec_acc), .exec_big_e(exec_big_e),
+        .exec_acc(exec_acc), .exec_big_e(exec_big_e), .exec_sticky(exec_sticky),
         .exec_prod(exec_prod), .exec_e_base(exec_e_base),
         .exec_mA4(exec_mA4), .exec_mB4(exec_mB4), .exec_e_div0(exec_e_div0),
         .exec_parity(exec_parity), .exec_eA_r(exec_eA_r)
@@ -137,12 +138,12 @@ module fp8_elastic_pipeline (
     wire signed [5:0]    n_ediv0  = n_busy ? div_e_div0_r: exec_e_div0;
 
     wire               norm_sign, norm_is_zero;
-    wire [15:0]        norm_mant_wide;
+    wire [`NRM_MW-1:0] norm_mant_wide;
     wire signed [5:0]  norm_exp_real;
 
     fp8_normalize norm_inst (
         .opcode(n_opcode), .in_sign(n_sign), .in_is_zero(n_zero),
-        .in_acc(exec_acc), .in_big_e(exec_big_e),
+        .in_acc(exec_acc), .in_big_e(exec_big_e), .in_sticky_as(exec_sticky),
         .in_prod(exec_prod), .in_e_base(exec_e_base),
         .in_quot(div_quot), .in_e_div0(n_ediv0), .in_remnz(div_remnz),
         .norm_sign(norm_sign), .norm_mant_wide(norm_mant_wide),
@@ -162,15 +163,15 @@ module fp8_elastic_pipeline (
                                + $signed({{2{B[7]}}, B});          // n = B (int8)
     wire signed [5:0] scalb_exp = (scalb_ew >  10'sd31) ?  6'sd31 :
                                   (scalb_ew < -10'sd32) ? -6'sd32 : scalb_ew[5:0];
-    wire [15:0]       scalb_mw  = {exec_mA4, 12'b0};               // MSB (bit3) -> bit15
+    wire [`NRM_MW-1:0] scalb_mw = {exec_mA4, {(`NRM_MW-4){1'b0}}};               // MSB (bit3) -> bit15
     // Regua final que entra na RA: SCALB injeta direto; senao vem do normalize
     wire               fin_sign = is_scalb ? s1_signA  : norm_sign;
-    wire [15:0]        fin_mw   = is_scalb ? scalb_mw   : norm_mant_wide;
+    wire [`NRM_MW-1:0] fin_mw   = is_scalb ? scalb_mw   : norm_mant_wide;
     wire signed [5:0]  fin_er   = is_scalb ? scalb_exp  : norm_exp_real;
     wire               fin_zero = is_scalb ? 1'b0       : norm_is_zero;
 
     // ---------------- RA (C0 -> C1) ----------------------------------------
-    localparam RA_WIDTH = 1 + 8 + `FLAG_WIDTH + `EXC_WIDTH + 1 + 16 + 6 + 1 + `RD_WIDTH;
+    localparam RA_WIDTH = 1 + 8 + `FLAG_WIDTH + `EXC_WIDTH + 1 + `NRM_MW + 6 + 1 + `RD_WIDTH;
     wire [RA_WIDTH-1:0] ra_data_in, ra_data_out;
     wire ra_valid_out, ra_ready_in, ra_ready_w;
 
@@ -223,7 +224,7 @@ module fp8_elastic_pipeline (
     wire [`FLAG_WIDTH-1:0]  ra_special_flags;
     wire [`EXC_WIDTH-1:0]   ra_special_exc;
     wire               ra_norm_sign, ra_norm_is_zero;
-    wire [15:0]        ra_norm_mant_wide;
+    wire [`NRM_MW-1:0]        ra_norm_mant_wide;
     wire signed [5:0]  ra_norm_exp_real;
     wire [`RD_WIDTH-1:0]  ra_rounding;
 

@@ -73,7 +73,22 @@ module fp8_pre_execute (
         //   negativo finito -> NaN + NV
         //   positivo finito -> caminho iterativo (use_special = 0)
         // ==============================================================
-        if (opcode == `OPCODE_SQRT) begin
+        // ==============================================================
+        // CVT inteiro -> fp8 (I2F/U2F): A e' um INTEIRO. Nenhuma
+        // classificacao FP8 se aplica (0x79 aqui e' 121, nao um NaN), entao
+        // este ramo precisa vir ANTES de qualquer teste de NaN/Inf.
+        //   n == 0 -> +0 SEMPRE (nunca -0, nem no modo DOWN)
+        //   n != 0 -> datapath
+        // ==============================================================
+        if (opcode == `OPCODE_CVT_I2F || opcode == `OPCODE_CVT_U2F) begin
+            if (A == 8'h00) begin
+                special_result = 8'h00;
+                special_flags[`FLAG_ZERO] = 1'b1;
+            end else begin
+                use_special = 1'b0;
+            end
+        end
+        else if (opcode == `OPCODE_SQRT) begin
             if (a_is_nan) begin
                 special_result = {signA, 4'b1111, mantA};
                 special_flags[`FLAG_NAN]  = 1'b1;

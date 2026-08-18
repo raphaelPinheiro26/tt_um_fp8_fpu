@@ -2,7 +2,7 @@
 #
 #   make                       # Fp8SmokeTest (default, fast)
 #   make TEST=Fp8ArithTest     # ADD/SUB/MUL/DIV, all rounding modes
-#   make TEST=Fp8FullRandomTest# all 14 opcodes, all rounding modes
+#   make TEST=Fp8FullRandomTest# all 18 opcodes, all rounding modes
 #   make SIM=verilator         # switch simulator (default: icarus)
 #   make clean
 #

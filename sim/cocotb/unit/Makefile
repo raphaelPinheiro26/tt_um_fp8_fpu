@@ -13,6 +13,10 @@ VERILOG_SOURCES += $(SRC_DIR)/fp8_unpack.v
 VERILOG_SOURCES += $(SRC_DIR)/fp8_execute_comb.v
 VERILOG_SOURCES += $(SRC_DIR)/fp8_normalize.v
 VERILOG_SOURCES += $(SRC_DIR)/fp8_round.v
+# tiny_fp8_unit -> fp8_elastic_pipeline instancia estes dois; sem eles o
+# iverilog nao elabora (o testbench estava quebrado).
+VERILOG_SOURCES += $(SRC_DIR)/fp8_div_iter.v
+VERILOG_SOURCES += $(SRC_DIR)/fp8_direct_ops.v
 
 COMPILE_ARGS += -I$(SRC_DIR)
 TOPLEVEL = tiny_fp8_unit

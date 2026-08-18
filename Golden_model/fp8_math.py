@@ -30,6 +30,8 @@ from fp8_common import (unpack, is_special, is_nan, is_inf, fp8_to_fraction,
                         OP_ADD, OP_SUB, OP_MULT, OP_DIV, OP_SQRT,
                         OP_MIN, OP_MAX, OP_ABS, OP_CLASSIFY, OP_COMPARE,
                         OP_SCALB, OP_ROUNDINT, OP_NEG, OP_COPYSIGN,
+                        OP_CVT_F2I, OP_CVT_F2U, OP_CVT_I2F, OP_CVT_U2F,
+                        INT8_MIN, INT8_MAX, UINT8_MIN, UINT8_MAX,
                         RM_NEAREST, RM_ZERO, RM_UP, RM_DOWN, RM_ODD,
                         CANONICAL_NAN, MAXFIN_VAL, ULP_TOP)
 
@@ -367,6 +369,85 @@ def fp8_roundint(A, rm):
     return r, _cflags(r), 0                        # roundToIntegral: sem NX
 
 
+# ----------------------------------------------------------------------
+# CONVERSOES INTEIRO <-> FP8   (semantica RISC-V FCVT)
+#
+# Regra: ARREDONDA primeiro segundo o rm, DEPOIS checa a faixa do inteiro.
+# Fora da faixa (ou NaN/Inf) satura no extremo e levanta INVALID.
+#
+# A IEEE-754 (7.2) manda sinalizar invalid e deixa o resultado "nao
+# especificado" nesse caso — ou seja, ela NAO escolhe por voce, mas o
+# hardware precisa emitir algum padrao de bits. Escolher o valor do RISC-V
+# custa ~20 celulas, deixa o acoplamento com o cv32e40x direto (sem correcao
+# em software) e mantem o modelo de referencia TOTAL: toda entrada tem uma
+# saida definida, o que permite assinatura exaustiva sem casos "don't care".
+#
+# Entrada sempre no operando A (as quatro conversoes sao unarias).
+# Conversoes PARA inteiro devolvem o inteiro no byte de resultado (complemento
+# de dois no caso com sinal) e flags = 0 — mesma convencao de CLASSIFY e
+# COMPARE, que tambem devolvem valores que nao sao FP8.
+# ----------------------------------------------------------------------
+def _round_frac_to_int(x, rm):
+    """Arredonda uma Fraction para INTEIRO segundo o modo IEEE. Espelha as
+    escolhas de fp8_roundint, mas devolve int em vez de um codigo FP8."""
+    lo = _math.floor(x); hi = _math.ceil(x)
+    if lo == hi:        return int(lo)
+    if rm == RM_ZERO:   return int(lo if x > 0 else hi)
+    if rm == RM_UP:     return int(hi)
+    if rm == RM_DOWN:   return int(lo)
+    if rm == RM_NEAREST:
+        dl, dh = x - lo, hi - x
+        if dl < dh: return int(lo)
+        if dh < dl: return int(hi)
+        return int(lo if lo % 2 == 0 else hi)        # empate -> par
+    # RM_ODD: escolhe o vizinho impar
+    return int(lo if lo % 2 != 0 else (hi if hi % 2 != 0 else lo))
+
+
+def _cvt_to_int(A, rm, lo_lim, hi_lim, nan_val):
+    """Nucleo comum de F2I/F2U: arredonda, depois satura."""
+    if is_nan(A):
+        return nan_val, 0, _b(E_INVALID)
+    if is_inf(A):
+        s, _, _ = unpack(A)
+        return (lo_lim if s else hi_lim), 0, _b(E_INVALID)
+    x = fp8_to_fraction(A)
+    n = _round_frac_to_int(x, rm)
+    if n < lo_lim: return lo_lim, 0, _b(E_INVALID)
+    if n > hi_lim: return hi_lim, 0, _b(E_INVALID)
+    # saturacao levanta INVALID e NAO INEXACT (regra do RISC-V)
+    return n, 0, (_b(E_INEXACT) if Fraction(n) != x else 0)
+
+
+def fp8_cvt_f2i(A, rm):
+    """fp8 -> int8 com sinal, saturando em [-128, 127]. NaN -> +127."""
+    n, fl, ex = _cvt_to_int(A, rm, INT8_MIN, INT8_MAX, INT8_MAX)
+    return n & 0xFF, fl, ex                          # complemento de dois
+
+
+def fp8_cvt_f2u(A, rm):
+    """fp8 -> uint8, saturando em [0, 255]. NaN -> 255, negativo -> 0."""
+    n, fl, ex = _cvt_to_int(A, rm, UINT8_MIN, UINT8_MAX, UINT8_MAX)
+    return n & 0xFF, fl, ex
+
+
+def fp8_cvt_i2f(A, rm):
+    """int8 com sinal -> fp8. Nao ha overflow: |int8| <= 128 < 240 (maior
+    finito do E4M3). So pode ser inexato (127 nao e' representavel)."""
+    n = A - 256 if A >= 128 else A
+    if n == 0:
+        return 0x00, _b(F_ZERO), 0                   # inteiro 0 -> +0 sempre
+    return _round_value(Fraction(n), rm)
+
+
+def fp8_cvt_u2f(A, rm):
+    """uint8 -> fp8. ESTA conversao pode estourar: 255 > 240, o maior finito.
+    O overflow segue a regra por modo do _round_value (Inf ou maior finito)."""
+    if A == 0:
+        return 0x00, _b(F_ZERO), 0
+    return _round_value(Fraction(A), rm)
+
+
 def fp8_math(A, B, opcode, rm):
     """Mathematical model: (result, flags, exceptions) for A op B in FP8."""
     if opcode == OP_SQRT:
@@ -383,6 +464,10 @@ def fp8_math(A, B, opcode, rm):
         n = B - 256 if B >= 128 else B
         r, fl, ex = fp8_scalb(A, n, rm);                         return r & 0xFF, fl, ex
     if opcode == OP_ROUNDINT: r, fl, ex = fp8_roundint(A, rm);   return r & 0xFF, fl, ex
+    if opcode == OP_CVT_F2I:  r, fl, ex = fp8_cvt_f2i(A, rm);    return r & 0xFF, fl, ex
+    if opcode == OP_CVT_F2U:  r, fl, ex = fp8_cvt_f2u(A, rm);    return r & 0xFF, fl, ex
+    if opcode == OP_CVT_I2F:  r, fl, ex = fp8_cvt_i2f(A, rm);    return r & 0xFF, fl, ex
+    if opcode == OP_CVT_U2F:  r, fl, ex = fp8_cvt_u2f(A, rm);    return r & 0xFF, fl, ex
     sp = _special(A, B, opcode, rm)
     if sp is not None:
         res, fl, ex = sp
